@@ -12,7 +12,13 @@ from PIL import Image
 from tesserae_pi_client import frame as frames
 from tesserae_pi_client.frame import FrameRejected, Hints, PackedFrame, load, packed_size
 from tesserae_pi_client.mqtt_loop import is_frame_topic
-from tesserae_pi_client.paint import SPECTRA6_RGB, packed_to_image, paint, unpack_to_buf
+from tesserae_pi_client.paint import (
+    SPECTRA6_RGB,
+    detected_gamuts,
+    packed_to_image,
+    paint,
+    unpack_to_buf,
+)
 
 
 def _png(w: int, h: int, colour: tuple[int, int, int] = (255, 0, 0)) -> bytes:
@@ -137,3 +143,30 @@ def test_frames_arrive_on_either_format_topic(topic: str, ok: bool) -> None:
 
 def test_no_hints_are_neutral() -> None:
     assert frames.NO_HINTS == Hints(0, "fit", "white", 0.5)
+
+
+# --- gamut detection ----------------------------------------------------------
+
+
+def _driver(module: str) -> Any:
+    cls = type("Inky", (), {})
+    cls.__module__ = module
+    return cls()
+
+
+@pytest.mark.parametrize(
+    ("module", "gamuts"),
+    [
+        ("inky.inky_e673", ["spectra_6"]),
+        ("inky.inky_e640", ["spectra_6"]),
+        ("inky.inky_el133uf1", ["spectra_6"]),
+        ("inky.inky_ac073tc1a", None),  # ACeP 7.3": same size as the Spectra 7.3"
+        ("inky.inky_uc8159", None),
+        ("inky.what", None),
+        ("somewhere.else", None),
+    ],
+)
+def test_only_a_known_spectra_6_driver_advertises_a_gamut(
+    module: str, gamuts: list[str] | None
+) -> None:
+    assert detected_gamuts(_driver(module)) == gamuts

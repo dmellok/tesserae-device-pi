@@ -436,6 +436,80 @@ def test_register_429_honors_retry_after(tmp_path: Path) -> None:
     assert 7 in shutdown.wait_calls
 
 
+def test_register_names_the_unified_kind_and_a_known_gamut(tmp_path: Path) -> None:
+    cfg = _config(pairing_code="ABC")
+    cfg_path = tmp_path / "config.toml"
+    save_config(cfg, cfg_path)
+    session = FakeSession()
+    session.queue(
+        "POST",
+        f"{BASE}/device/register",
+        FakeResponse(201, {"device_token": "TOK", "device_id": "pi_png"}),
+    )
+    client = RestClient(SERVER_URL, session=session)  # type: ignore[arg-type]
+    status = _status()
+    status.gamuts = ["spectra_6"]
+
+    assert _claim_via_register(client, cfg, status, FakeShutdown(), cfg_path) is not None
+    sent = json.loads(session.calls[0]["data"])
+    assert sent["kind"] == "pi_client" and sent["gamuts"] == ["spectra_6"]
+
+
+def test_register_leaves_gamuts_out_when_the_panel_is_unknown(tmp_path: Path) -> None:
+    cfg = _config(pairing_code="ABC")
+    cfg_path = tmp_path / "config.toml"
+    save_config(cfg, cfg_path)
+    session = FakeSession()
+    session.queue(
+        "POST",
+        f"{BASE}/device/register",
+        FakeResponse(201, {"device_token": "TOK", "device_id": "pi_png"}),
+    )
+    client = RestClient(SERVER_URL, session=session)  # type: ignore[arg-type]
+
+    _claim_via_register(client, cfg, _status(), FakeShutdown(), cfg_path)
+    assert "gamuts" not in json.loads(session.calls[0]["data"])
+
+
+def test_an_older_server_gets_the_legacy_png_kind(tmp_path: Path) -> None:
+    cfg = _config(pairing_code="ABC")
+    cfg_path = tmp_path / "config.toml"
+    save_config(cfg, cfg_path)
+    session = FakeSession()
+    session.queue(
+        "POST",
+        f"{BASE}/device/register",
+        FakeResponse(400, {"error": "unknown device kind 'pi_client'", "status": 400}),
+        FakeResponse(201, {"device_token": "TOK", "device_id": "pi_png"}),
+    )
+    client = RestClient(SERVER_URL, session=session)  # type: ignore[arg-type]
+    status = _status()
+
+    updated = _claim_via_register(client, cfg, status, FakeShutdown(), cfg_path)
+    assert updated is not None and updated.rest.device_token == "TOK"
+    kinds = [json.loads(c["data"])["kind"] for c in session.calls]
+    assert kinds == ["pi_client", "pi_png_client"]
+    assert status.kind == "pi_png_client"
+
+
+def test_a_bad_body_is_still_fatal_and_never_loops(tmp_path: Path) -> None:
+    cfg = _config(pairing_code="ABC")
+    cfg_path = tmp_path / "config.toml"
+    save_config(cfg, cfg_path)
+    session = FakeSession()
+    session.queue(
+        "POST",
+        f"{BASE}/device/register",
+        FakeResponse(400, {"error": "unknown device kind 'pi_client'"}),
+        FakeResponse(400, {"error": "unknown device kind 'pi_png_client'"}),
+    )
+    client = RestClient(SERVER_URL, session=session)  # type: ignore[arg-type]
+
+    with pytest.raises(SystemExit):
+        _claim_via_register(client, cfg, _status(), FakeShutdown(), cfg_path)
+    assert len(session.calls) == 2
+
+
 # --- frame GET (ETag) ----------------------------------------------------------
 
 

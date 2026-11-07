@@ -95,9 +95,15 @@ def test_status_discovery_fields_round_trip() -> None:
     assert obj["ip"] == "192.168.1.42"
 
 
-def test_status_kind_defaults_to_pi_png_client() -> None:
+def test_status_kind_defaults_to_the_unified_pi_client() -> None:
     obj = json.loads(Status(panel="x").to_json())
-    assert obj["kind"] == "pi_png_client"
+    assert obj["kind"] == "pi_client"
+
+
+def test_gamuts_are_sent_only_when_known() -> None:
+    assert "gamuts" not in json.loads(Status(panel="x").to_json())
+    obj = json.loads(Status(panel="x", gamuts=["spectra_6"]).to_json())
+    assert obj["gamuts"] == ["spectra_6"]
 
 
 # --- telemetry fields added for firmware parity --------------------------------

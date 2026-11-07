@@ -104,6 +104,23 @@ _KNOWN_PANELS: dict[tuple[int, int], str] = {
 }
 
 
+# inky drivers for the Spectra 6 Impressions (4", 7.3", 13.3"): the panels the
+# server's packed .bin renderer targets. Matched on the driver's module, which
+# is the only thing that tells a Spectra 6 7.3" from the ACeP 7.3" (same size).
+SPECTRA6_DRIVERS: frozenset[str] = frozenset({"inky_e640", "inky_e673", "inky_el133uf1"})
+
+
+def detected_gamuts(panel: Any) -> list[str] | None:
+    """The gamut to advertise for this panel, or None when not certain.
+
+    Only a known Spectra 6 driver says ``spectra_6``. Anything else says
+    nothing and stays on PNG: the server maps a gamut label it doesn't know
+    to Spectra 6, so a wrong guess would get a frame this panel can't show.
+    """
+    module = type(panel).__module__.rsplit(".", 1)[-1]
+    return ["spectra_6"] if module in SPECTRA6_DRIVERS else None
+
+
 def model_name(panel: Any) -> str:
     """Best-effort identifier for the panel, derived from its resolution."""
     w, h = panel_resolution(panel)
@@ -146,7 +163,7 @@ def packed_to_image(frame: PackedFrame) -> Image:
     """A packed frame as an RGB image in the Spectra 6 palette."""
     indices = unpack_to_buf(frame.data, frame.width, frame.height)
     palette = np.array(SPECTRA6_RGB + [(255, 255, 255)] * (16 - len(SPECTRA6_RGB)), np.uint8)
-    return fromarray(palette[indices], "RGB")
+    return fromarray(palette[indices])  # (h, w, 3) uint8 is RGB
 
 
 def paint(panel: Any, frame: Paintable, saturation: float) -> None:
@@ -211,7 +228,9 @@ __all__ = [
     "STRIPE_COLORS",
     "Panel",
     "SPECTRA6_RGB",
+    "SPECTRA6_DRIVERS",
     "auto_panel",
+    "detected_gamuts",
     "model_name",
     "packed_to_image",
     "paint",

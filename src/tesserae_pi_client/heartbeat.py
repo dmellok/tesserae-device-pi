@@ -13,7 +13,11 @@ HEARTBEAT_INTERVAL_S = 60.0
 
 # Discovery: Tesserae watches tesserae/+/status and uses this to pre-fill the
 # device kind in its one-click register flow.
-KIND = "pi_png_client"
+KIND = "pi_client"
+# What a server older than the unified kind knows this client as. Pairing
+# retries with it when the server answers "unknown device kind"; it is the
+# PNG kind, which every panel can paint.
+LEGACY_KIND = "pi_png_client"
 
 
 def status_topic(device_id: str) -> str:
@@ -111,6 +115,9 @@ class Status:
     # could not carry it (see button_report.BUTTON_REPORT_FALLBACK_NOTE).
     button: str = ""
     button_event_id: int | None = None
+    # Panel gamuts this client is sure of (paint.detected_gamuts). Lets the
+    # server serve a Spectra 6 Impression the packed .bin; None = say nothing.
+    gamuts: list[str] | None = None
 
     def payload(self) -> dict[str, Any]:
         body: dict[str, Any] = {
@@ -126,6 +133,8 @@ class Status:
             "panel_h": self.panel_h,
             "ip": self.ip,
         }
+        if self.gamuts:
+            body["gamuts"] = list(self.gamuts)
         if self.rssi is not None:
             body["rssi"] = self.rssi
         if self.tz:
@@ -213,6 +222,7 @@ def status_summary(status: Status) -> str:
 __all__ = [
     "HEARTBEAT_INTERVAL_S",
     "KIND",
+    "LEGACY_KIND",
     "OFFLINE_WILL_PAYLOAD",
     "Heartbeat",
     "Publisher",

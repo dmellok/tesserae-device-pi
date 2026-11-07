@@ -33,7 +33,7 @@ import requests
 from ..button_report import ButtonReport
 from ..config import Config, save_config, with_relay_updates
 from ..frame import FrameRejected, load
-from ..heartbeat import Status, _wifi_rssi
+from ..heartbeat import LEGACY_KIND, Status, _wifi_rssi
 from ..mqtt_loop import PaintFn
 from ..relay_crypto import (
     RelayCryptoError,
@@ -61,9 +61,11 @@ TRANSIENT_FAILURE_BACKOFF_S = 30
 
 # The device kind home falls back to when the pairing slot names none. Sent as
 # a self-report so the operator doesn't have to pre-enter geometry. Home
-# resolves (model, panel_w, panel_h) to a renderer, so this must name the PNG
-# kind — the .bin sibling's value would get us packed frames we cannot decode.
-DEVICE_MODEL = "pi_png_client"
+# resolves (model, panel_w, panel_h) to a renderer. Still the PNG kind rather
+# than the unified pi_client: over the relay there is no register response to
+# tell an older home apart (REST pairing falls back on "unknown device kind"),
+# and this client paints PNG on every panel.
+DEVICE_MODEL = LEGACY_KIND
 
 # Saturation for relay frames. The relay carries no render payload we are
 # willing to trust (the X-Tesserae-Meta header is plaintext and alterable), so

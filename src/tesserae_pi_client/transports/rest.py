@@ -37,7 +37,7 @@ from ..cache_sync import CacheManager
 from ..config import Config, RestConfig, save_config, with_rest_updates
 from ..environment import EnvironmentSensor
 from ..environment import payload_for as env_payload
-from ..heartbeat import Status, _wifi_rssi
+from ..heartbeat import LEGACY_KIND, Status, _wifi_rssi
 from ..mqtt_loop import PaintFn, parse_frame_payload
 from ..ota_report import OtaReporter
 
@@ -74,8 +74,14 @@ def _mac_address() -> str:
 
 
 def _device_info(cfg: Config, status: Status) -> dict[str, Any]:
-    """Body shared by /discover and /register: identifies this firmware."""
-    return {
+    """Body shared by /discover and /register: identifies this firmware.
+
+    ``gamuts`` is sent only when the panel was positively identified: the
+    server reads it to pick the packed .bin renderer for a Spectra 6
+    Impression, and maps a label it doesn't know to Spectra 6, so a guess
+    would be worse than saying nothing.
+    """
+    info: dict[str, Any] = {
         "device_id": cfg.mqtt.device_id,
         "kind": status.kind,
         "panel_w": status.panel_w,
@@ -83,6 +89,15 @@ def _device_info(cfg: Config, status: Status) -> dict[str, Any]:
         "fw_version": status.fw_version,
         "mac": _mac_address(),
     }
+    if status.gamuts:
+        info["gamuts"] = list(status.gamuts)
+    return info
+
+
+def _unknown_kind(code: int, body: dict[str, Any] | None) -> bool:
+    """A server older than the unified kind refusing to register it."""
+    error = body.get("error") if isinstance(body, dict) else None
+    return code == 400 and isinstance(error, str) and "unknown device kind" in error
 
 
 def _auth_headers(token: str) -> dict[str, str]:
@@ -448,6 +463,14 @@ def _claim_via_register(
             log.error("register 403: pairing code invalid or expired — generate a fresh one")
             raise SystemExit(2)
         if code == 400:
+            if _unknown_kind(code, body) and status.kind != LEGACY_KIND:
+                log.warning(
+                    "server does not know kind %s (older Tesserae); pairing as %s",
+                    status.kind,
+                    LEGACY_KIND,
+                )
+                status.kind = LEGACY_KIND
+                continue
             log.error("register 400: bad body (body=%r)", body)
             raise SystemExit(2)
         if code == 429:

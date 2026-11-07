@@ -18,7 +18,14 @@ from .config import (
     with_rest_updates,
 )
 from .heartbeat import Status, _primary_ip
-from .paint import auto_panel, model_name, paint, panel_resolution, stripe_test_image
+from .paint import (
+    auto_panel,
+    detected_gamuts,
+    model_name,
+    paint,
+    panel_resolution,
+    stripe_test_image,
+)
 
 log = logging.getLogger(__name__)
 
@@ -70,7 +77,14 @@ def _build_status_and_painter(_config: Config) -> tuple[Status, Any, Any]:
     name = model_name(panel)
     log.info("detected panel %s (%dx%d)", name, panel_size[0], panel_size[1])
 
-    status = Status(panel=name, panel_w=panel_size[0], panel_h=panel_size[1])
+    status = Status(
+        panel=name,
+        panel_w=panel_size[0],
+        panel_h=panel_size[1],
+        gamuts=detected_gamuts(panel),
+    )
+    if status.gamuts:
+        log.info("panel gamut %s: the server can send packed .bin frames", status.gamuts[0])
     # Resolved once at startup — neither value changes between cycles.
     status.ip = _primary_ip()
 
