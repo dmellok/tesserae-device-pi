@@ -8,16 +8,16 @@ from pathlib import Path
 
 import pytest
 
-from tesserae_pi_client import diagnostics
-from tesserae_pi_client.config import save_config
-from tesserae_pi_client.diagnostics import (
+from tesserae_device_pi import diagnostics
+from tesserae_device_pi.config import save_config
+from tesserae_device_pi.diagnostics import (
     MAX_UPLOAD_BYTES,
     DiagLatch,
     LogRing,
     log_header,
     upload_requested,
 )
-from tesserae_pi_client.transports.rest import RestClient, _wake_cycle
+from tesserae_device_pi.transports.rest import RestClient, _wake_cycle
 from tests.test_rest import BASE, SERVER_URL, FakeResponse, FakeSession, _config, _status
 
 

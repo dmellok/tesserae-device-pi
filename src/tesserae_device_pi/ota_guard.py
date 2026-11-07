@@ -12,7 +12,7 @@ once that has happened ``MAX_BOOTS`` times, this reinstalls what was there
 before, records ``rolled_back`` / ``boot_failed`` where the client's OTA
 reporter reads its state, and clears the record. No record, nothing to do.
 
-    python ota-guard.py ~/.cache/tesserae-pi-client/ota-pending.json
+    python ota-guard.py ~/.cache/tesserae-device-pi/ota-pending.json
 """
 
 from __future__ import annotations

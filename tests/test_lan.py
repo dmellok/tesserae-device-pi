@@ -11,10 +11,10 @@ from pathlib import Path
 
 import pytest
 
-from tesserae_pi_client import lan
-from tesserae_pi_client.config import load_config, render_config_toml
-from tesserae_pi_client.heartbeat import Status
-from tesserae_pi_client.lan import (
+from tesserae_device_pi import lan
+from tesserae_device_pi.config import load_config, render_config_toml
+from tesserae_device_pi.heartbeat import Status
+from tesserae_device_pi.lan import (
     UNLOCK_S,
     LanAccess,
     LanServer,

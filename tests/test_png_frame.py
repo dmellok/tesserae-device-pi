@@ -14,7 +14,7 @@ import io
 import pytest
 from PIL.Image import new as new_image
 
-from tesserae_pi_client.png_frame import (
+from tesserae_device_pi.png_frame import (
     PNG_MAGIC,
     FrameRejected,
     decode_frame,

@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from tesserae_pi_client.ota_report import OTA_SCHEMA, OtaReporter
+from tesserae_device_pi.ota_report import OTA_SCHEMA, OtaReporter
 
 
 def _reporter(tmp_path: Path) -> OtaReporter:

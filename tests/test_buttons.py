@@ -8,8 +8,8 @@ simply never arrive.
 
 from __future__ import annotations
 
-from tesserae_pi_client.buttons import PIN_C_LARGE, PIN_C_SMALL, default_pin_c
-from tesserae_pi_client.config import BUTTON_PIN_C_AUTO, ButtonsConfig
+from tesserae_device_pi.buttons import PIN_C_LARGE, PIN_C_SMALL, default_pin_c
+from tesserae_device_pi.config import BUTTON_PIN_C_AUTO, ButtonsConfig
 
 
 def test_13_3_inch_gets_gpio_25() -> None:

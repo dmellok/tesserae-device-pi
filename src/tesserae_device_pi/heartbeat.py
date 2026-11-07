@@ -35,7 +35,7 @@ def _fw_version() -> str:
     removed.
     """
     try:
-        raw = version("tesserae-pi-client")
+        raw = version("tesserae-device-pi")
     except PackageNotFoundError:
         return "0.0.0"
     return raw.split("+", 1)[0]

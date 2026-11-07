@@ -60,9 +60,9 @@ It does, idempotently:
    — or `mqtt` for an existing broker setup), device id, the
    transport-specific fields, and whether to arm the front buttons
    (off by default), then writes
-   `~/.config/tesserae-pi-client/config.toml` (skipped if it exists,
+   `~/.config/tesserae-device-pi/config.toml` (skipped if it exists,
    unless `--reconfigure`)
-7. Symlink `.venv/bin/tesserae-pi-client` to `/usr/local/bin/`
+7. Symlink `.venv/bin/tesserae-device-pi` to `/usr/local/bin/`
 8. Install + enable + start the systemd service (skip with `--no-service`)
 
 Useful flags:
@@ -105,7 +105,7 @@ Before wiring up MQTT, paint a colour-stripe test pattern to confirm
 the SPI path and panel orientation:
 
 ```bash
-tesserae-pi-client --paint-test
+tesserae-device-pi --paint-test
 ```
 
 If you see a refresh and a coloured stripe pattern, the hardware path is good.
@@ -114,7 +114,7 @@ section below is for you.
 
 ### Configure
 
-The first run writes `~/.config/tesserae-pi-client/config.toml` with
+The first run writes `~/.config/tesserae-device-pi/config.toml` with
 sensible defaults. For REST mode (the new default) point `rest.server_url`
 at the Tesserae server; for MQTT mode point `mqtt.host` at your broker:
 
@@ -161,7 +161,7 @@ debounce_ms = 50
 
 [cache]
 enabled = true       # deck pages + album frames cached locally
-root = ""            # empty = ~/.cache/tesserae-pi-client
+root = ""            # empty = ~/.cache/tesserae-device-pi
 
 [ota]
 report_enabled = true
@@ -215,7 +215,7 @@ troubleshooting).
 
 ```bash
 sudo ./scripts/install-service.sh        # uses $SUDO_USER by default
-sudo journalctl -fu tesserae-pi-client
+sudo journalctl -fu tesserae-device-pi
 ```
 
 The unit runs as your user with `gpio` + `spi` + `i2c` group membership
@@ -244,7 +244,7 @@ relevant fields (REST → server URL + optional pairing code; MQTT →
 broker host/port/credentials/client id).
 
 Switching mode later is a config-file edit + `sudo systemctl restart
-tesserae-pi-client`. **Existing `config.toml` files** without
+tesserae-device-pi`. **Existing `config.toml` files** without
 `transport_mode` continue to default to **`mqtt`** (no surprise mode
 switch on upgrade); only fresh installs get the new REST default.
 
@@ -268,7 +268,7 @@ To re-pair after the fact (e.g. token was revoked, or the local
 CLI override:
 
 ```bash
-tesserae-pi-client --pair 123456
+tesserae-device-pi --pair 123456
 ```
 
 `--pair` overrides whatever is in `[rest].pairing_code` for that run
@@ -494,7 +494,7 @@ that never had a cache.
 
 **Decks.** `GET /device/<id>/deck` returns pages with 16-hex sha256
 digests, byte sizes, TTLs and a button/zone link graph. Frames land in
-`~/.cache/tesserae-pi-client/decks/<deck_id>/`, and a button press
+`~/.cache/tesserae-device-pi/decks/<deck_id>/`, and a button press
 the graph can answer paints straight from disk — no server round trip.
 
 A locally-served press is deliberately **not** reported as a button
@@ -577,7 +577,7 @@ transport_mode = "relay"
 ```
 
 ```sh
-tesserae-pi-client --pair CODE   # code from Settings -> Cloud relay
+tesserae-device-pi --pair CODE   # code from Settings -> Cloud relay
 ```
 
 The panel self-reports `model: "pi_png_client"` (the PNG kind every home
@@ -745,7 +745,7 @@ B refresh, C next by default. Holding refresh:
 |---|---|
 | under 3 s | refresh |
 | 3-19 s | unlocks the settings page for 15 minutes (the panel shows its address and a QR code) |
-| 20 s | factory reset: forgets the pairing, keeps server, buttons and sensors, and starts pairing again (also `tesserae-pi-client --factory-reset`) |
+| 20 s | factory reset: forgets the pairing, keeps server, buttons and sensors, and starts pairing again (also `tesserae-device-pi --factory-reset`) |
 
 **Settings page:** `http://<pi>:8790/`. Always shows the client's status. It
 takes changes (server, transport, pairing code, device id, factory reset)
@@ -782,7 +782,7 @@ paint fails, the client sends its recent log (tokens and keys blanked).
 **Frame never paints, state stays `idle`**
 - Is the broker reachable from the Pi? `mosquitto_sub -h <broker> -t '#'`
 - Is the URL reachable from the Pi? `curl -I <url>`
-- Tail the journal: `sudo journalctl -fu tesserae-pi-client`
+- Tail the journal: `sudo journalctl -fu tesserae-device-pi`
 
 **`state: error` with `last_error` ending in `URLError` / `TimeoutError`**
 - The Tesserae server's render directory is unreachable from the Pi —
@@ -859,7 +859,7 @@ needed on a Pi that has those features turned on.
 ### Layout
 
 ```
-src/tesserae_pi_client/
+src/tesserae_device_pi/
   transforms.py        # pure rotate/scale/bg — fully tested
   png_frame.py         # signature + decode + geometry checks for payload-less frames
   config.py            # TOML load + atomic save + transport_mode/[rest]/[relay]/...

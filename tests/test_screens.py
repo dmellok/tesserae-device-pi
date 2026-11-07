@@ -7,9 +7,9 @@ from typing import Any
 
 import pytest
 
-from tesserae_pi_client import screens
-from tesserae_pi_client.screens import ScreenPainter, render
-from tesserae_pi_client.transports import rest
+from tesserae_device_pi import screens
+from tesserae_device_pi.screens import ScreenPainter, render
+from tesserae_device_pi.transports import rest
 
 
 @pytest.mark.parametrize("size", [(250, 122), (800, 480), (1600, 1200), (480, 800)])

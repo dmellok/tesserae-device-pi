@@ -9,10 +9,10 @@ import numpy as np
 import pytest
 from PIL import Image
 
-from tesserae_pi_client import frame as frames
-from tesserae_pi_client.frame import FrameRejected, Hints, PackedFrame, load, packed_size
-from tesserae_pi_client.mqtt_loop import is_frame_topic
-from tesserae_pi_client.paint import (
+from tesserae_device_pi import frame as frames
+from tesserae_device_pi.frame import FrameRejected, Hints, PackedFrame, load, packed_size
+from tesserae_device_pi.mqtt_loop import is_frame_topic
+from tesserae_device_pi.paint import (
     SPECTRA6_RGB,
     detected_gamuts,
     packed_to_image,

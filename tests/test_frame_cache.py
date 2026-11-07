@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from tesserae_pi_client.frame_cache import (
+from tesserae_device_pi.frame_cache import (
     FrameCache,
     capacity_bytes,
     digest_of,

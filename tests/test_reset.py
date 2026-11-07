@@ -5,15 +5,15 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from tesserae_pi_client.buttons import RESET_HOLD_S, UNLOCK_HOLD_S, check_holds
-from tesserae_pi_client.config import (
+from tesserae_device_pi.buttons import RESET_HOLD_S, UNLOCK_HOLD_S, check_holds
+from tesserae_device_pi.config import (
     factory_reset,
     load_config,
     render_config_toml,
     save_config,
 )
-from tesserae_pi_client.heartbeat import Status
-from tesserae_pi_client.main import run
+from tesserae_device_pi.heartbeat import Status
+from tesserae_device_pi.main import run
 
 PAIRED = render_config_toml(
     device_id="hall",

@@ -61,7 +61,7 @@ def pairing_with_code(server_url: str, ip: str, version: str) -> Screen:
             "",
             "If it was rejected, make a new code in",
             "Settings > Devices and run:",
-            "tesserae-pi-client --pair CODE",
+            "tesserae-device-pi --pair CODE",
         ),
         _footer(ip, version),
     )
@@ -121,7 +121,7 @@ def battery_empty(pct: int) -> Screen:
 
 
 def _footer(ip: str, version: str) -> str:
-    parts = [p for p in (f"IP {ip}" if ip else "", f"tesserae-pi-client {version}") if p]
+    parts = [p for p in (f"IP {ip}" if ip else "", f"tesserae-device-pi {version}") if p]
     return "   ".join(parts)
 
 

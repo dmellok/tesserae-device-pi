@@ -22,8 +22,8 @@ from typing import Any
 from PIL.Image import Image
 from PIL.Image import new as new_image
 
-from tesserae_pi_client.button_report import ButtonReport
-from tesserae_pi_client.config import (
+from tesserae_device_pi.button_report import ButtonReport
+from tesserae_device_pi.config import (
     ButtonsConfig,
     Config,
     HttpConfig,
@@ -33,15 +33,15 @@ from tesserae_pi_client.config import (
     parse_toml,
     save_config,
 )
-from tesserae_pi_client.heartbeat import Status
-from tesserae_pi_client.relay_crypto import (
+from tesserae_device_pi.heartbeat import Status
+from tesserae_device_pi.relay_crypto import (
     b64url_encode,
     derive_frame_key,
     public_key_for,
     seal,
 )
-from tesserae_pi_client.transports import relay
-from tesserae_pi_client.transports.relay import (
+from tesserae_device_pi.transports import relay
+from tesserae_device_pi.transports.relay import (
     USER_AGENT,
     RelayClient,
     _pair,
@@ -239,7 +239,7 @@ def test_derived_key_matches_what_home_would_derive(tmp_path: Path) -> None:
     assert out is not None
 
     panel_pub_b64 = json.loads(session.calls[0]["data"])["panel_pubkey"]
-    from tesserae_pi_client.relay_crypto import b64url_decode
+    from tesserae_device_pi.relay_crypto import b64url_decode
 
     home_derived = derive_frame_key(HOME_PRIV, b64url_decode(panel_pub_b64))
     assert b64url_encode(home_derived) == out.relay.frame_key

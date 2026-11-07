@@ -6,7 +6,7 @@ import pytest
 from PIL.Image import Image
 from PIL.Image import new as new_image
 
-from tesserae_pi_client.paint import (
+from tesserae_device_pi.paint import (
     STRIPE_COLORS,
     model_name,
     paint,

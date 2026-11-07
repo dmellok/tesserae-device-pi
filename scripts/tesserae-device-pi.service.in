@@ -8,11 +8,11 @@ Type=simple
 User=@USER@
 Group=@USER@
 SupplementaryGroups=gpio spi
-# OTA rollback guard (src/tesserae_pi_client/ota_guard.py): counts starts
+# OTA rollback guard (src/tesserae_device_pi/ota_guard.py): counts starts
 # while an update is unconfirmed and puts the previous version back after
 # three. The leading "-" means a missing guard never blocks a start.
 ExecStartPre=-@PYTHON@ @CACHE@/ota-guard.py @CACHE@/ota-pending.json
-ExecStart=/usr/local/bin/tesserae-pi-client
+ExecStart=/usr/local/bin/tesserae-device-pi
 Restart=on-failure
 RestartSec=5
 StandardOutput=journal

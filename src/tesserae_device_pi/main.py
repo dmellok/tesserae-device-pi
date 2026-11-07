@@ -250,7 +250,7 @@ def _apply_relay_pair_flag(config: Config, pair_code: str, config_path: Path) ->
 
 def run(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        prog="tesserae-pi-client",
+        prog="tesserae-device-pi",
         description="Paint Tesserae frames (packed .bin or PNG) onto a Pimoroni "
         "e-ink panel, over REST, MQTT or the cloud relay.",
     )

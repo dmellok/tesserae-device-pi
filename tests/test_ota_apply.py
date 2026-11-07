@@ -15,14 +15,14 @@ import pytest
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 
-from tesserae_pi_client import ota_apply, ota_guard
-from tesserae_pi_client.ota_apply import (
+from tesserae_device_pi import ota_apply, ota_guard
+from tesserae_device_pi.ota_apply import (
     OtaRejected,
     OtaUpdater,
     is_newer,
     verify_descriptor,
 )
-from tesserae_pi_client.ota_report import OtaReporter
+from tesserae_device_pi.ota_report import OtaReporter
 
 KEY = Ed25519PrivateKey.generate()
 OTHER = Ed25519PrivateKey.generate()
@@ -39,7 +39,7 @@ def _b64u(raw: bytes) -> str:
     return base64.urlsafe_b64encode(raw).rstrip(b"=").decode()
 
 
-def _wheel(version: str = "1.0.0", package: str = "tesserae_pi_client") -> bytes:
+def _wheel(version: str = "1.0.0", package: str = "tesserae_device_pi") -> bytes:
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w") as z:
         z.writestr(f"{package}-{version}.dist-info/METADATA", f"Name: x\nVersion: {version}\n")
@@ -145,7 +145,7 @@ def test_an_update_installs_and_asks_for_a_restart(tmp_path: Path) -> None:
     assert s.updater.apply(_descriptor(s.image), "pi_client") is True
     assert s.downloads == [("/api/v1/ota/pi_client/1.0.0.whl", len(s.image))]
     (wheel_args,) = s.installs
-    assert wheel_args[0].endswith("tesserae_pi_client-1.0.0-py3-none-any.whl")
+    assert wheel_args[0].endswith("tesserae_device_pi-1.0.0-py3-none-any.whl")
     pending = json.loads((tmp_path / "ota-pending.json").read_text())
     assert pending["target"] == "1.0.0" and pending["boots"] == 0
     assert pending["state_path"] == str(s.reporter.path)
@@ -309,8 +309,8 @@ def test_production_trusts_only_the_production_key() -> None:
 
 
 def test_an_offer_in_a_status_reply_installs_and_exits_for_systemd(tmp_path: Path) -> None:
-    from tesserae_pi_client.config import parse_toml, render_config_toml
-    from tesserae_pi_client.transports import rest
+    from tesserae_device_pi.config import parse_toml, render_config_toml
+    from tesserae_device_pi.transports import rest
 
     cfg = parse_toml(render_config_toml(cache_root=str(tmp_path)))
     image = _wheel()

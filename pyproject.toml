@@ -3,7 +3,7 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "tesserae-pi-client"
+name = "tesserae-device-pi"
 version = "0.9.0"
 description = "Raspberry Pi client for Tesserae: paints packed .bin or PNG frames onto a Pimoroni Inky e-ink panel, over REST, MQTT or the cloud relay."
 readme = "README.md"
@@ -38,7 +38,7 @@ dev = [
 ]
 
 [project.scripts]
-tesserae-pi-client = "tesserae_pi_client.main:run"
+tesserae-device-pi = "tesserae_device_pi.main:run"
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -57,37 +57,37 @@ strict = false
 [[tool.mypy.overrides]]
 # Contract modules — strict.
 module = [
-    "tesserae_pi_client.config",
-    "tesserae_pi_client.frame",
-    "tesserae_pi_client.lan",
-    "tesserae_pi_client.ota_apply",
-    "tesserae_pi_client.ota_guard",
-    "tesserae_pi_client.diagnostics",
-    "tesserae_pi_client.migrate",
-    "tesserae_pi_client.transforms",
-    "tesserae_pi_client.heartbeat",
-    "tesserae_pi_client.mqtt_loop",
-    "tesserae_pi_client.transports.rest",
+    "tesserae_device_pi.config",
+    "tesserae_device_pi.frame",
+    "tesserae_device_pi.lan",
+    "tesserae_device_pi.ota_apply",
+    "tesserae_device_pi.ota_guard",
+    "tesserae_device_pi.diagnostics",
+    "tesserae_device_pi.migrate",
+    "tesserae_device_pi.transforms",
+    "tesserae_device_pi.heartbeat",
+    "tesserae_device_pi.mqtt_loop",
+    "tesserae_device_pi.transports.rest",
     # Added for firmware parity — same bar as the rest.
-    "tesserae_pi_client.button_report",
-    "tesserae_pi_client.collection",
-    "tesserae_pi_client.deck",
-    "tesserae_pi_client.frame_cache",
-    "tesserae_pi_client.ota_report",
-    "tesserae_pi_client.png_frame",
-    "tesserae_pi_client.relay_crypto",
-    "tesserae_pi_client.transports.sse",
+    "tesserae_device_pi.button_report",
+    "tesserae_device_pi.collection",
+    "tesserae_device_pi.deck",
+    "tesserae_device_pi.frame_cache",
+    "tesserae_device_pi.ota_report",
+    "tesserae_device_pi.png_frame",
+    "tesserae_device_pi.relay_crypto",
+    "tesserae_device_pi.transports.sse",
 ]
 strict = true
 
 [[tool.mypy.overrides]]
 # Hardware-touching paths — defaults.
 module = [
-    "tesserae_pi_client.paint",
-    "tesserae_pi_client.main",
-    "tesserae_pi_client.buttons",
-    "tesserae_pi_client.environment",
-    "tesserae_pi_client.transports.mqtt",
+    "tesserae_device_pi.paint",
+    "tesserae_device_pi.main",
+    "tesserae_device_pi.buttons",
+    "tesserae_device_pi.environment",
+    "tesserae_device_pi.transports.mqtt",
 ]
 ignore_missing_imports = true
 

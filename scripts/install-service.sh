@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
-# Install tesserae-pi-client as a systemd service.
+# Install tesserae-device-pi as a systemd service.
 #
 # Run as root (or via sudo) ON THE PI after `pip install .` has put the
-# tesserae-pi-client binary on PATH (default /usr/local/bin).
+# tesserae-device-pi binary on PATH (default /usr/local/bin).
 #
 # The unit is templated for the user that will run the daemon — pick the
 # account that has membership in the `gpio` and `spi` groups. The default
 # `pi` user typically does.
 set -euo pipefail
 
-UNIT_NAME="tesserae-pi-client.service"
+UNIT_NAME="tesserae-device-pi.service"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-UNIT_TEMPLATE="${SCRIPT_DIR}/tesserae-pi-client.service.in"
+UNIT_TEMPLATE="${SCRIPT_DIR}/tesserae-device-pi.service.in"
 UNIT_DEST="/etc/systemd/system/${UNIT_NAME}"
 
 SERVICE_USER="${1:-${SUDO_USER:-pi}}"
@@ -24,8 +24,8 @@ if [[ "$(id -u)" -ne 0 ]]; then
     echo "this script must be run as root (try: sudo $0 [user])" >&2
     exit 1
 fi
-if ! command -v tesserae-pi-client >/dev/null 2>&1; then
-    echo "tesserae-pi-client binary not found on PATH" >&2
+if ! command -v tesserae-device-pi >/dev/null 2>&1; then
+    echo "tesserae-device-pi binary not found on PATH" >&2
     echo "install it first: pip install ." >&2
     exit 1
 fi
@@ -46,13 +46,13 @@ done
 
 # The venv's python (for the OTA guard and pip) and the service user's cache
 # dir, where an update stages its wheel and the guard keeps its record.
-CLIENT_BIN="$(readlink -f "$(command -v tesserae-pi-client)")"
+CLIENT_BIN="$(readlink -f "$(command -v tesserae-device-pi)")"
 VENV_PYTHON="$(dirname "${CLIENT_BIN}")/python"
 SERVICE_HOME="$(getent passwd "${SERVICE_USER}" | cut -d: -f6)"
-CACHE_DIR="${SERVICE_HOME}/.cache/tesserae-pi-client"
+CACHE_DIR="${SERVICE_HOME}/.cache/tesserae-device-pi"
 install -d -o "${SERVICE_USER}" -g "${SERVICE_USER}" "${CACHE_DIR}"
 install -o "${SERVICE_USER}" -g "${SERVICE_USER}" -m 0644 \
-    "$("${VENV_PYTHON}" -c 'import tesserae_pi_client.ota_guard as g; print(g.__file__)')" \
+    "$("${VENV_PYTHON}" -c 'import tesserae_device_pi.ota_guard as g; print(g.__file__)')" \
     "${CACHE_DIR}/ota-guard.py"
 
 echo "installing ${UNIT_NAME} for user ${SERVICE_USER}"

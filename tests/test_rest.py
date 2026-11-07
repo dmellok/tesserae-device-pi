@@ -16,8 +16,8 @@ import requests
 from PIL.Image import Image
 from PIL.Image import new as new_image
 
-from tesserae_pi_client.button_report import ButtonReport
-from tesserae_pi_client.config import (
+from tesserae_device_pi.button_report import ButtonReport
+from tesserae_device_pi.config import (
     Config,
     HttpConfig,
     LoggingConfig,
@@ -26,9 +26,9 @@ from tesserae_pi_client.config import (
     parse_toml,
     save_config,
 )
-from tesserae_pi_client.heartbeat import Status
-from tesserae_pi_client.transports import rest
-from tesserae_pi_client.transports.rest import (
+from tesserae_device_pi.heartbeat import Status
+from tesserae_device_pi.transports import rest
+from tesserae_device_pi.transports.rest import (
     API_PREFIX,
     RestClient,
     _apply_status_response,
@@ -967,7 +967,7 @@ def test_cacheless_status_body_carries_no_cache_keys(tmp_path: Path) -> None:
 
 
 def test_disabled_cache_advertises_nothing_through_the_cycle(tmp_path: Path) -> None:
-    from tesserae_pi_client.cache_sync import CacheManager
+    from tesserae_device_pi.cache_sync import CacheManager
 
     cfg = _config(device_token="TOK")
     cfg_path = tmp_path / "config.toml"
@@ -995,7 +995,7 @@ def test_disabled_cache_advertises_nothing_through_the_cycle(tmp_path: Path) -> 
 
 
 def test_enabled_cache_advertises_both_capabilities(tmp_path: Path) -> None:
-    from tesserae_pi_client.cache_sync import CacheManager
+    from tesserae_device_pi.cache_sync import CacheManager
 
     cfg = _config(device_token="TOK")
     cfg_path = tmp_path / "config.toml"
@@ -1063,8 +1063,8 @@ def test_locally_served_press_is_not_reported_as_a_button_action(
 
     from PIL.Image import new as _new_image
 
-    from tesserae_pi_client.cache_sync import CacheManager
-    from tesserae_pi_client.frame_cache import digest_of
+    from tesserae_device_pi.cache_sync import CacheManager
+    from tesserae_device_pi.frame_cache import digest_of
 
     def _png(color: int) -> bytes:
         buf = _io.BytesIO()

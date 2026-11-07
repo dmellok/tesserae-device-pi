@@ -6,8 +6,8 @@ import os
 import stat
 from pathlib import Path
 
-from tesserae_pi_client.config import load_config, render_config_toml
-from tesserae_pi_client.migrate import adopt_legacy_config, legacy_config_paths
+from tesserae_device_pi.config import load_config, render_config_toml
+from tesserae_device_pi.migrate import adopt_legacy_config, legacy_config_paths
 
 # Written the way the old installers wrote them (render_config_toml with the
 # prompted values); the bin client's also had a [panel] section.
@@ -25,7 +25,7 @@ def _write(path: Path, body: str, mtime: float) -> None:
 
 
 def _target(home: Path) -> Path:
-    return home / ".config" / "tesserae-pi-client" / "config.toml"
+    return home / ".config" / "tesserae-device-pi" / "config.toml"
 
 
 def test_nothing_to_adopt_on_a_fresh_pi(tmp_path: Path) -> None:

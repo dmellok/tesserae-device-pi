@@ -10,7 +10,7 @@ from typing import Any
 
 import pytest
 
-from tesserae_pi_client.battery import (
+from tesserae_device_pi.battery import (
     PISUGAR3_ADDR,
     BatteryMonitor,
     Reading,
@@ -137,7 +137,7 @@ def test_monitor_does_not_latch_a_failure(
     every beat until restart. The journal gets one warning, then quiet."""
     _install_fake_smbus(monkeypatch, {})  # every read raises KeyError
     monitor = BatteryMonitor("pisugar3")
-    with caplog.at_level(logging.DEBUG, logger="tesserae_pi_client.battery"):
+    with caplog.at_level(logging.DEBUG, logger="tesserae_device_pi.battery"):
         assert monitor.read() is None
         assert monitor.read() is None
     warnings = [r for r in caplog.records if r.levelno == logging.WARNING]

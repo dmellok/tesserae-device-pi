@@ -71,8 +71,8 @@ MANIFEST_FIELDS = (
 )
 #: Server kinds this one package runs as.
 KINDS = frozenset({"pi_client", "pi_png_client", "pi_bin_client"})
-DIST_NAME = "tesserae-pi-client"
-PACKAGE = "tesserae_pi_client"
+DIST_NAME = "tesserae-device-pi"
+PACKAGE = "tesserae_device_pi"
 #: A wheel of this client is a few hundred KB; refuse anything absurd.
 MAX_IMAGE_BYTES = 64 * 1024 * 1024
 #: Exit code after installing an update: systemd (Restart=on-failure) starts

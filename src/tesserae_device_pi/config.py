@@ -8,7 +8,7 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
-DEFAULT_CONFIG_PATH = Path.home() / ".config" / "tesserae-pi-client" / "config.toml"
+DEFAULT_CONFIG_PATH = Path.home() / ".config" / "tesserae-device-pi" / "config.toml"
 
 DEFAULT_DEVICE_ID = "pi_png"
 
@@ -177,7 +177,7 @@ def render_config_toml(
         "# Advertising the capability is what makes the server offer them.\n"
         f"enabled = {'true' if cache_enabled else 'false'}\n"
         f"root = {_toml_str(cache_root)}"
-        "                # empty = ~/.cache/tesserae-pi-client\n"
+        "                # empty = ~/.cache/tesserae-device-pi\n"
         "\n"
         "[ota]\n"
         "# Reports update-attempt state to the server's Devices UI. This client\n"
