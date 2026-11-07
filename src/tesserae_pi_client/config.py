@@ -765,6 +765,19 @@ def with_relay_updates(cfg: Config, **relay_fields: Any) -> Config:
     return replace(cfg, relay=replace(cfg.relay, **relay_fields))
 
 
+def secret_values(cfg: Config) -> list[str]:
+    """Every credential in the config, for redacting logs before upload."""
+    return [
+        cfg.rest.device_token,
+        cfg.rest.pairing_code,
+        cfg.relay.pairing_code,
+        cfg.relay.device_token,
+        cfg.relay.frame_key,
+        cfg.relay.private_key,
+        cfg.mqtt.password or "",
+    ]
+
+
 #: Exit code after a factory reset: systemd (Restart=on-failure) starts the
 #: client again, which, with no token, goes straight into pairing.
 FACTORY_RESET_EXIT = 3
@@ -794,6 +807,7 @@ def factory_reset(cfg: Config) -> Config:
 
 __all__ = [
     "FACTORY_RESET_EXIT",
+    "secret_values",
     "factory_reset",
     "BUTTON_ACTIONS",
     "BUTTON_PIN_C_AUTO",

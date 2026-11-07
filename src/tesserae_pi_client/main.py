@@ -8,13 +8,14 @@ import threading
 from pathlib import Path
 from typing import Any
 
-from . import __version__
+from . import __version__, diagnostics
 from .config import (
     DEFAULT_CONFIG_PATH,
     Config,
     factory_reset,
     load_config,
     save_config,
+    secret_values,
     with_relay_updates,
     with_rest_updates,
 )
@@ -32,11 +33,19 @@ from .paint import (
 log = logging.getLogger(__name__)
 
 
-def _setup_logging(level: str) -> None:
+def _setup_logging(level: str, config: Config | None = None) -> None:
     logging.basicConfig(
         level=level,
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
+    # The ring the server can ask for (diagnostics.py). It takes the same
+    # lines as the journal, secrets blanked.
+    root = logging.getLogger()
+    if diagnostics.RING not in root.handlers:
+        diagnostics.RING.setLevel(level)
+        root.addHandler(diagnostics.RING)
+    if config is not None:
+        diagnostics.RING.set_secrets(secret_values(config))
 
 
 def _detect_panel() -> Any:
@@ -91,7 +100,13 @@ def _build_status_and_painter(_config: Config) -> tuple[Status, Any, Any]:
     status.ip = _primary_ip()
 
     def paint_fn(img: Any, saturation: float) -> None:
-        paint(panel, img, saturation)
+        try:
+            paint(panel, img, saturation)
+        except Exception as exc:
+            # Latched for the next status beat (diag), then raised so the
+            # transport's own failure handling still runs.
+            diagnostics.DIAG.latch_paint_error(exc)
+            raise
 
     return status, panel, paint_fn
 
@@ -229,7 +244,7 @@ def run(argv: list[str] | None = None) -> int:
     if args.config == DEFAULT_CONFIG_PATH:
         adopt_legacy_config(args.config)
     config = load_config(args.config)
-    _setup_logging(config.logging.level)
+    _setup_logging(config.logging.level, config)
 
     if args.factory_reset:
         save_config(factory_reset(config), args.config)

@@ -29,6 +29,7 @@ from typing import Any
 
 import requests
 
+from .. import diagnostics
 from .. import frame as frames
 from ..battery import BatteryMonitor
 from ..battery import payload_for as battery_payload
@@ -40,6 +41,7 @@ from ..config import (
     RestConfig,
     factory_reset,
     save_config,
+    secret_values,
     with_rest_updates,
 )
 from ..environment import EnvironmentSensor
@@ -244,6 +246,19 @@ class RestClient:
         )
         self._last_retry_after = _retry_after(resp)
         return resp.status_code, _maybe_json(resp)
+
+    def post_log(self, device_id: str, token: str, data: bytes) -> int:
+        """Upload a log batch (text/plain, protocol v1). Returns the status."""
+        headers = _auth_headers(token)
+        headers["Content-Type"] = "text/plain; charset=utf-8"
+        resp = self._session.post(
+            self._url(f"/device/{device_id}/log"),
+            data=data,
+            headers=headers,
+            timeout=self._timeout,
+            allow_redirects=False,
+        )
+        return int(resp.status_code)
 
     def get_deck_manifest(self, device_id: str, token: str) -> tuple[int, str]:
         """Returns (status_code, raw_body). 204 means no deck is bound."""
@@ -557,6 +572,21 @@ def _apply_status_response(
         return cfg, _clamp_server_poll(int(nps))
 
     return cfg, _clamp_poll(next_poll)
+
+
+def _upload_log(client: RestClient, device_id: str, token: str, status: Status) -> None:
+    """Send this wake's log, as the server asked. Best effort: a failed
+    upload is logged (into the next batch) and never fails the cycle."""
+    header = diagnostics.log_header(status.fw_version, status.started_at)
+    try:
+        code = client.post_log(device_id, token, diagnostics.RING.dump(header))
+    except (requests.ConnectionError, requests.Timeout) as exc:
+        log.warning("log upload failed (%s: %s)", type(exc).__name__, exc)
+        return
+    if code in (200, 201, 204):
+        log.info("log uploaded")
+    else:
+        log.warning("log upload answered %d", code)
 
 
 def _clamp_server_poll(value: int) -> int:
@@ -925,6 +955,9 @@ def _wake_cycle(
         body_out.update(cache.report())
     if telemetry is not None:
         body_out.update(telemetry.payload())
+    diagnostics.RING.set_secrets(secret_values(config))  # a pairing may have changed them
+    body_out.update(diagnostics.capability(diagnostics.RING))
+    body_out.update(diagnostics.DIAG.status_fields())
 
     try:
         post_code, post_body = client.post_status(device_id, token, body_out)
@@ -956,6 +989,9 @@ def _wake_cycle(
         return config, config.rest.poll_interval_s, False
 
     config, next_poll = _apply_status_response(config, post_body, config_path)
+    diagnostics.DIAG.acknowledge(body_out)
+    if diagnostics.upload_requested(post_body):
+        _upload_log(client, device_id, token, status)
 
     # Resync at the tail of the cycle, after the paint — a slow e-ink refresh
     # should not wait on manifest downloads.
