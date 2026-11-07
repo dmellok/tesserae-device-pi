@@ -657,6 +657,16 @@ hand (`git pull`, `pip install`) is reported the same way.
 `0.0.0+unknown`; a PEP 440 local-version segment doesn't parse as SemVer,
 so the server's update comparison rejected it outright.
 
+### Releasing
+
+Bump `version` in `pyproject.toml`, merge, and publish a GitHub release
+tagged `v<version>`. The release workflow tests and builds the wheel,
+attaches it, and (after approval in the `ota-signing` environment) signs it
+once per Pi kind (`pi_client`, `pi_png_client`, `pi_bin_client`) and attaches
+`descriptor-<kind>.json`. api.tesserae.ink's firmware feed picks those up, and
+each Tesserae server shows the update on Settings > Firmware. A pre-release
+is built and signed, but the feed skips it.
+
 ## Environment telemetry
 
 Optional ambient temperature/humidity from an **SHT4x** or **SHTC3** on

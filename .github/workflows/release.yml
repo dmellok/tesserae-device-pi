@@ -1,0 +1,190 @@
+name: release
+
+# On a published GitHub Release: build the wheel, attach it, and sign it as an
+# OTA image for every Pi kind this client runs as. The descriptors are
+# attached as descriptor-<kind>.json, which is what api.tesserae.ink's
+# firmware feed looks for; a Tesserae server then offers the update to its
+# Pis (Settings > Firmware, or automatically where a device opts in).
+#
+# The OTA image is the wheel itself, signed detached: the same file a person
+# installs by hand with pip is the one a Pi downloads, checks against the
+# signed size and SHA-256, and installs (src/tesserae_device_pi/ota_apply.py).
+#
+# One wheel, three kinds: pi_client, plus the two older kinds that migrated
+# installs are still registered as. An un-migrated pi-png / pi-bin install
+# reports OTA state but never installs, so an offer to one is inert.
+#
+# SECURITY: OTA_SIGN_TOKEN authorises signing arbitrary bytes with the
+# production key. It lives only in the protected `ota-signing` environment
+# (required reviewers), not in repo secrets, so the sign job waits for
+# approval. No pull_request trigger, so fork PRs never reach it. Rollout to
+# devices stays a deliberate step on each Tesserae server.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to build and sign (e.g. v0.9.0)'
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.ver.outputs.version }}
+      fw_version: ${{ steps.ver.outputs.fw_version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name || inputs.tag }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Resolve version
+        id: ver
+        run: |
+          set -euo pipefail
+          v='${{ github.event.release.tag_name || inputs.tag }}'
+          fw="${v#v}"
+          py=$(python -c "import tomllib;print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
+          if [ "$py" != "$fw" ]; then
+            echo "tag $v does not match pyproject version $py" >&2
+            exit 1
+          fi
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          echo "fw_version=$fw" >> "$GITHUB_OUTPUT"
+
+      - name: Test
+        run: |
+          pip install -e ".[dev]"
+          ruff check .
+          mypy src
+          pytest -q
+
+      - name: Build wheel
+        run: |
+          set -euo pipefail
+          pip install build
+          rm -rf dist
+          python -m build --wheel
+          fw='${{ steps.ver.outputs.fw_version }}'
+          whl="dist/tesserae_device_pi-$fw-py3-none-any.whl"
+          test -f "$whl"
+          unzip -l "$whl" | grep -q "tesserae_device_pi-$fw.dist-info/METADATA"
+          unzip -l "$whl" | grep -q "tesserae_device_pi/ota_guard.py"
+          sha256sum "$whl"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheel
+          path: dist/*.whl
+          if-no-files-found: error
+
+  attach-wheel:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: wheel
+          path: dist
+      - name: Attach the wheel to the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          tag='${{ needs.build.outputs.version }}'
+          if gh release view "$tag" > /dev/null 2>&1; then
+            gh release upload "$tag" dist/*.whl --clobber
+          else
+            echo "no GitHub release for $tag; the wheel is the 'wheel' artifact"
+          fi
+
+  sign:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: ota-signing
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: wheel
+          path: dist
+
+      - name: Sign for each Pi kind
+        env:
+          OTA_SIGN_TOKEN: ${{ secrets.OTA_SIGN_TOKEN }}
+          OTA_SIGN_URL: ${{ vars.OTA_SIGN_URL || 'https://tesserae-ota-signer.dmellok.workers.dev' }}
+        run: |
+          set -euo pipefail
+          fw='${{ needs.build.outputs.fw_version }}'
+          whl="dist/tesserae_device_pi-$fw-py3-none-any.whl"
+          test -f "$whl"
+          if [ -z "${OTA_SIGN_TOKEN:-}" ]; then
+            echo "OTA_SIGN_TOKEN is not set in the ota-signing environment" >&2
+            exit 1
+          fi
+          mkdir -p descriptors
+          for kind in pi_client pi_png_client pi_bin_client; do
+            echo "signing $kind @ $fw ($(stat -c%s "$whl") bytes)"
+            code=$(curl -sS -o resp.json -w '%{http_code}' \
+              -X POST "$OTA_SIGN_URL/sign?device_kind=$kind&fw_version=$fw" \
+              -H "Authorization: Bearer $OTA_SIGN_TOKEN" \
+              --data-binary "@$whl")
+            if [ "$code" != "200" ]; then
+              echo "signer returned HTTP $code for $kind:" >&2
+              cat resp.json >&2
+              exit 1
+            fi
+            if ! jq -e '(has("error") | not) and .descriptor.payload and .descriptor.signature' resp.json > /dev/null; then
+              echo "signer response for $kind has no descriptor:" >&2
+              cat resp.json >&2
+              exit 1
+            fi
+            got=$(jq -r '.manifest.fw_version // empty' resp.json)
+            if [ "$got" != "$fw" ]; then
+              echo "manifest fw_version '$got' does not match $fw" >&2
+              exit 1
+            fi
+            want=$(sha256sum "$whl" | awk '{print $1}')
+            if [ "$(jq -r '.manifest.sha256' resp.json)" != "$want" ]; then
+              echo "manifest sha256 does not match the wheel for $kind" >&2
+              exit 1
+            fi
+            url=$(jq -r '.image_url // empty' resp.json)
+            if [ -z "$url" ] || ! curl -sf -r 0-0 -o /dev/null "$url"; then
+              echo "image_url missing or not fetchable for $kind: ${url:-<none>}" >&2
+              exit 1
+            fi
+            jq '.descriptor' resp.json > "descriptors/descriptor-$kind.json"
+            rm -f resp.json
+            echo "signed $kind (image: $url)"
+          done
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ota-descriptors
+          path: descriptors/
+          if-no-files-found: error
+
+      - name: Attach descriptors to the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          tag='${{ needs.build.outputs.version }}'
+          if gh release view "$tag" > /dev/null 2>&1; then
+            gh release upload "$tag" descriptors/descriptor-*.json --clobber
+          else
+            echo "no GitHub release for $tag; descriptors are the ota-descriptors artifact"
+          fi

@@ -1,0 +1,43 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - run: pip install -e ".[dev]"
+      - run: ruff format --check .
+      - run: ruff check .
+      - run: mypy src
+      - run: pytest -q
+
+  wheel:
+    # The OTA image is the wheel: check it builds and carries what
+    # ota_apply.check_image looks for.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install build
+      - run: python -m build --wheel
+      - name: Inspect the wheel
+        run: |
+          set -euo pipefail
+          v=$(python -c "import tomllib;print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
+          whl=$(ls dist/tesserae_device_pi-"$v"-py3-none-any.whl)
+          unzip -l "$whl" | grep -q "tesserae_device_pi-$v.dist-info/METADATA"
+          unzip -l "$whl" | grep -q "tesserae_device_pi/ota_guard.py"
