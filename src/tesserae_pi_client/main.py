@@ -18,6 +18,7 @@ from .config import (
     with_rest_updates,
 )
 from .heartbeat import Status, _primary_ip
+from .migrate import adopt_legacy_config
 from .paint import (
     auto_panel,
     detected_gamuts,
@@ -192,8 +193,8 @@ def _apply_relay_pair_flag(config: Config, pair_code: str, config_path: Path) ->
 def run(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="tesserae-pi-client",
-        description="Subscribe to a Tesserae server and paint PNG frames "
-        "onto a Pimoroni e-ink panel via the inky library.",
+        description="Paint Tesserae frames (packed .bin or PNG) onto a Pimoroni "
+        "e-ink panel, over REST, MQTT or the cloud relay.",
     )
     parser.add_argument("--version", action="version", version=__version__)
     parser.add_argument(
@@ -218,6 +219,8 @@ def run(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
+    if args.config == DEFAULT_CONFIG_PATH:
+        adopt_legacy_config(args.config)
     config = load_config(args.config)
     _setup_logging(config.logging.level)
 

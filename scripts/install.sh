@@ -338,6 +338,26 @@ write_config() {
         "$VENV_DIR/bin/python" -m tesserae_pi_client.bootstrap_config
 }
 
+# An install of one of the clients this replaces: keep its config (device id,
+# pairing token, buttons) rather than prompting for a fresh one. The newer of
+# the two wins, as at runtime (src/tesserae_pi_client/migrate.py).
+if [[ ! -f "$CONFIG_PATH" ]] && ! $RECONFIGURE; then
+    legacy=""
+    for old in "${HOME}/.config/tesserae-pi-png-client/config.toml" \
+               "${HOME}/.config/tesserae-pi-bin-client/config.toml"; do
+        if [[ -f "$old" && ( -z "$legacy" || "$old" -nt "$legacy" ) ]]; then
+            legacy="$old"
+        fi
+    done
+    if [[ -n "$legacy" ]]; then
+        echo "==> found the config of a previous Tesserae Pi client: $legacy"
+        mkdir -p "$(dirname "$CONFIG_PATH")"
+        cp -p "$legacy" "$CONFIG_PATH"
+        chmod 600 "$CONFIG_PATH"
+        echo "    copied to $CONFIG_PATH (kept the original)"
+    fi
+fi
+
 config_existed_before=false
 if [[ -f "$CONFIG_PATH" ]]; then
     config_existed_before=true

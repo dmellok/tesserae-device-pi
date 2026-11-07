@@ -34,6 +34,16 @@ if ! id "${SERVICE_USER}" >/dev/null 2>&1; then
     exit 1
 fi
 
+# The clients this one replaces drive the same panel: stop and disable them so
+# two daemons never paint over each other. Their unit files are left in place
+# (disabled), so going back is `systemctl enable --now <old unit>`.
+for old_unit in tesserae-pi-png-client.service tesserae-pi-bin-client.service; do
+    if systemctl list-unit-files "${old_unit}" --no-legend 2>/dev/null | grep -q .; then
+        echo "disabling the replaced ${old_unit}"
+        systemctl disable --now "${old_unit}" || true
+    fi
+done
+
 echo "installing ${UNIT_NAME} for user ${SERVICE_USER}"
 sed "s|@USER@|${SERVICE_USER}|g" "${UNIT_TEMPLATE}" > "${UNIT_DEST}"
 chmod 0644 "${UNIT_DEST}"

@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "tesserae-pi-client"
-version = "0.1.1"
-description = "Raspberry Pi daemon that subscribes to a Tesserae server over MQTT and paints PNG frames onto a Pimoroni e-ink panel via the inky library."
+version = "0.9.0"
+description = "Raspberry Pi client for Tesserae: paints packed .bin or PNG frames onto a Pimoroni Inky e-ink panel, over REST, MQTT or the cloud relay."
 readme = "README.md"
 license = { text = "AGPL-3.0-or-later" }
 requires-python = ">=3.11"
@@ -13,12 +13,15 @@ authors = [{ name = "Tesserae" }]
 dependencies = [
     "paho-mqtt>=2.0,<3",
     "Pillow>=10,<12",
+    # paint.py unpacks a packed .bin frame into inky's buf with numpy. inky
+    # depends on it too; listed because we import it directly.
+    "numpy>=1.24",
     # transports/rest.py uses requests for HTTP polling. inky already pulls
     # it transitively today, but list it explicitly so the dep tree doesn't
     # depend on inky's chain to satisfy a module we import directly.
     "requests>=2.31",
-    # set_image() is the high-level entry point — no private-API dependency,
-    # so we can take a range rather than the exact pin the bin client uses.
+    # A range, not a pin: a packed frame is written to the driver's buf only
+    # when the driver has one, else it goes through set_image (paint.py).
     "inky[rpi]>=2.0,<3",
     # relay_crypto.py: X25519 + HKDF-SHA256 + AES-256-GCM for the cloud-relay
     # transport, pinned to docs/relay/contract.md's golden vectors.
@@ -53,6 +56,8 @@ strict = false
 # Contract modules — strict.
 module = [
     "tesserae_pi_client.config",
+    "tesserae_pi_client.frame",
+    "tesserae_pi_client.migrate",
     "tesserae_pi_client.transforms",
     "tesserae_pi_client.heartbeat",
     "tesserae_pi_client.mqtt_loop",

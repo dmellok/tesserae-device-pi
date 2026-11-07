@@ -1,5 +1,5 @@
 [Unit]
-Description=Tesserae Pi PNG client (Pimoroni e-ink panel)
+Description=Tesserae Raspberry Pi client (Pimoroni e-ink panel)
 After=network-online.target
 Wants=network-online.target
 
