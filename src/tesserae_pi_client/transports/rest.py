@@ -29,7 +29,7 @@ from typing import Any
 
 import requests
 
-from .. import diagnostics
+from .. import diagnostics, screens
 from .. import frame as frames
 from ..battery import BatteryMonitor
 from ..battery import payload_for as battery_payload
@@ -388,6 +388,7 @@ def _claim_via_discover(
         try:
             code, body = client.discover(_device_info(cfg, status))
         except (requests.ConnectionError, requests.Timeout) as exc:
+            _show_unreachable(cfg, status)
             log.warning(
                 "discover failed (%s: %s); retrying in %ds",
                 type(exc).__name__,
@@ -458,6 +459,7 @@ def _claim_via_register(
         try:
             code, body, retry_after = client.register(_device_info(cfg, status), pairing_code)
         except (requests.ConnectionError, requests.Timeout) as exc:
+            _show_unreachable(cfg, status)
             log.warning(
                 "register failed (%s: %s); retrying in %ds",
                 type(exc).__name__,
@@ -574,6 +576,24 @@ def _apply_status_response(
     return cfg, _clamp_poll(next_poll)
 
 
+def _show_unreachable(cfg: Config, status: Status) -> None:
+    """The offline screen, but only on a Pi with nothing better on the glass."""
+    screens.SCREENS.show(
+        screens.server_unreachable(cfg.rest.server_url, status.ip, status.fw_version),
+        only_if_never_painted=True,
+    )
+
+
+#: At or below this a UPS on battery power is about to drop the Pi.
+BATTERY_EMPTY_PCT = 5
+
+
+def _show_if_battery_empty(body: dict[str, Any]) -> None:
+    pct = body.get("battery_pct")
+    if isinstance(pct, int) and pct <= BATTERY_EMPTY_PCT and body.get("power_plugged") is False:
+        screens.SCREENS.show(screens.battery_empty(pct))
+
+
 def _upload_log(client: RestClient, device_id: str, token: str, status: Status) -> None:
     """Send this wake's log, as the server asked. Best effort: a failed
     upload is logged (into the next batch) and never fails the cycle."""
@@ -646,12 +666,20 @@ def run(
     # 1. Acquire a device_token if we don't have one.
     if not config.rest.device_token:
         if config.rest.pairing_code:
+            screens.SCREENS.show(
+                screens.pairing_with_code(config.rest.server_url, status.ip, status.fw_version)
+            )
             log.info("no device_token — registering with pairing code")
             updated = _claim_via_register(client, config, status, shutdown, config_path)
         else:
             log.info(
                 "no device_token — entering discover loop "
                 "(admin must click Register on Settings -> Devices)"
+            )
+            screens.SCREENS.show(
+                screens.waiting_for_register(
+                    config.rest.server_url, status.ip, status.fw_version, config.mqtt.device_id
+                )
             )
             updated = _claim_via_discover(client, config, status, shutdown, config_path)
         if updated is None:
@@ -880,6 +908,9 @@ def _wake_cycle(
         _play_album_if_due(cache, status, paint_fn)
     elif code == 204:
         log.info("no frame rendered yet; nothing to paint")
+        screens.SCREENS.show(
+            screens.waiting_for_frame(status.ip, status.fw_version), only_if_never_painted=True
+        )
         status.state = "idle"
         status.last_error = None
         _play_album_if_due(cache, status, paint_fn)
@@ -955,6 +986,7 @@ def _wake_cycle(
         body_out.update(cache.report())
     if telemetry is not None:
         body_out.update(telemetry.payload())
+        _show_if_battery_empty(body_out)
     diagnostics.RING.set_secrets(secret_values(config))  # a pairing may have changed them
     body_out.update(diagnostics.capability(diagnostics.RING))
     body_out.update(diagnostics.DIAG.status_fields())

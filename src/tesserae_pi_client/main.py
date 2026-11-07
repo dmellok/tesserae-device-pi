@@ -8,7 +8,7 @@ import threading
 from pathlib import Path
 from typing import Any
 
-from . import __version__, diagnostics
+from . import __version__, diagnostics, screens
 from .config import (
     DEFAULT_CONFIG_PATH,
     Config,
@@ -26,6 +26,7 @@ from .paint import (
     detected_gamuts,
     model_name,
     paint,
+    paint_image,
     panel_resolution,
     stripe_test_image,
 )
@@ -80,7 +81,7 @@ def _do_paint_test(_: Config) -> int:
     return 0
 
 
-def _build_status_and_painter(_config: Config) -> tuple[Status, Any, Any]:
+def _build_status_and_painter(config: Config) -> tuple[Status, Any, Any]:
     """Shared by both transports: detect the panel, pre-fill discovery
     fields on Status, return (status, panel, paint_fn)."""
     panel = _detect_panel()
@@ -99,6 +100,14 @@ def _build_status_and_painter(_config: Config) -> tuple[Status, Any, Any]:
     # Resolved once at startup — neither value changes between cycles.
     status.ip = _primary_ip()
 
+    # Status screens paint straight to the panel, not through paint_fn, so a
+    # screen never counts as the first real frame.
+    screens.SCREENS = screens.ScreenPainter(
+        lambda img: paint_image(panel, img, 0.5),
+        panel_size,
+        marker=config.cache.root_path() / "painted",
+    )
+
     def paint_fn(img: Any, saturation: float) -> None:
         try:
             paint(panel, img, saturation)
@@ -107,6 +116,7 @@ def _build_status_and_painter(_config: Config) -> tuple[Status, Any, Any]:
             # transport's own failure handling still runs.
             diagnostics.DIAG.latch_paint_error(exc)
             raise
+        screens.SCREENS.note_frame_painted()
 
     return status, panel, paint_fn
 
