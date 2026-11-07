@@ -1,28 +1,37 @@
 # tesserae-device-pi
 
-Raspberry Pi-side daemon that talks to a [Tesserae](https://github.com/dmellok/tesserae)
-server — either by **polling the REST API** (default for fresh installs) or by
-**subscribing to an MQTT broker** — downloads PNG frames, applies the server's
-rotate / scale / bg / saturation hints, and paints them onto a Pimoroni
-e-ink panel via the official [`inky`](https://github.com/pimoroni/inky)
-library.
+The Raspberry Pi client for [Tesserae](https://github.com/dmellok/tesserae). It
+paints Tesserae dashboards onto a Pimoroni Inky e-ink panel (Impression, wHAT or
+pHAT), and talks to the server over its REST API (the default), an MQTT broker,
+or the cloud relay.
 
-This is the **PNG path** counterpart to
-[`tesserae-device-pi-bin`](https://github.com/dmellok/tesserae-device-pi-bin).
-Most installs only need ONE of the two.
+It replaces the two earlier Pi clients, `tesserae-device-pi-png` and
+`tesserae-device-pi-bin`: one client now does both of their jobs.
 
-| | tesserae-pi-bin-client | tesserae-pi-client (this) |
-|---|---|---|
-| Wire format | 4-bpp packed `.bin` | RGB `.png` |
-| Quantise / dither done by | Tesserae server | inky lib, on the Pi |
-| Hardware | Inky Impression (Spectra 6 / Waveshare E6) | any inky-supported panel |
-| Speed per frame | fast (no PIL roundtrip) | slower (per-frame quantise) |
-| Inky version pin | exact | range (`>=2.0,<3`) |
+- **The fastest frames a panel can take.** A Spectra 6 Impression (4", 7.3",
+  13.3") is sent a frame already quantised and packed by the server, which is
+  written straight to the panel. Every other Inky panel gets a PNG that the Pi
+  dithers itself. The Pi reports its panel when it pairs, and the server picks
+  the format, so there is nothing to choose.
+- **What the ESP32 firmware does:** pairing with a code or one click, push
+  updates over SSE, offline decks and albums, front buttons, stay-awake polling,
+  battery and sensor telemetry, logs the server can ask for, signed
+  self-updates, and a factory reset.
+- **Things a Pi does better:** status screens on the panel, and a settings page
+  on your network.
 
-Pick the **png** client if any of the following is true:
-- you have an Inky pHAT, Inky wHAT, or any Inky Impression
-- you're migrating from an inky-dash v3/v4 setup
-- you want the broadest possible hardware support
+## Upgrading from tesserae-device-pi-png or -pi-bin
+
+Install this client as below. It finds the old client's config
+(`~/.config/tesserae-pi-png-client/` or `~/.config/tesserae-pi-bin-client/`),
+copies it, and keeps the device's id, pairing and button settings, so nothing
+needs re-pairing. The installer disables the old service; it does not delete it
+or its config, so going back is `sudo systemctl enable --now <old unit>`.
+
+The device keeps the kind it was paired as on the server, and keeps getting the
+frames it always got; this client paints either. To move it to the unified
+`pi_client` kind (and the fast path, if its panel is a Spectra 6), remove it
+on the server and pair again.
 
 ---
 
@@ -176,9 +185,9 @@ level = "INFO"
 ```
 
 `device_id` identifies this Pi to Tesserae and (in MQTT mode) sets the
-topic prefix `tesserae/<device_id>/...`. The default `pi_png` matches the
-server's built-in `pi_png_client` kind. Give each Pi its own id
-(`pi_png_lounge`, `pi_png_kitchen`, …) if you run more than one. It must
+topic prefix `tesserae/<device_id>/...`. The client pairs as the server's
+`pi_client` kind (or `pi_png_client` on a server too old to know it). Give
+each Pi its own id (`pi_lounge`, `pi_kitchen`, …) if you run more than one. It must
 be lowercase, 2–32 chars, and start with a letter
 (`^[a-z][a-z0-9_-]{1,31}$`).
 
@@ -279,9 +288,12 @@ The examples below use the default.
 
 ### Subscribe
 
-Topic: `tesserae/<device_id>/frame/png` (QoS 1, not retained)
+Topic: `tesserae/<device_id>/frame/+` (QoS 1): `frame/png` for a PNG,
+`frame/bin` for a packed Spectra 6 frame.
 
-Payload (all five fields required):
+Payload: `url` is required. A PNG announcement also carries the four
+transform hints below; a `.bin` one carries none (the frame is already in
+the panel's palette and orientation). A hint that is present is validated.
 
 ```json
 {
@@ -314,7 +326,9 @@ Topic: `tesserae/<device_id>/status` (QoS 1, retained, also the LWT topic)
   "uptime_s": 3601,
   "fw_version": "0.1.0",
   "panel": "inky_impression_13_3",
-  "kind": "pi_png_client",
+  "kind": "pi_client",
+  "gamuts": ["spectra_6"],
+  "can_stay_awake": true,
   "panel_w": 1600,
   "panel_h": 1200,
   "ip": "192.168.1.42"
@@ -342,7 +356,10 @@ call (cheap belt-and-suspenders against header-stripping middleboxes).
 
 ### First boot — `POST /device/discover`
 
-Body: `{device_id, kind: "pi_png_client", panel_w, panel_h, fw_version, mac}`.
+Body: `{device_id, kind: "pi_client", panel_w, panel_h, fw_version, mac}`, plus
+`gamuts: ["spectra_6"]` only when the panel is a Spectra 6 Impression (the
+inky driver says so). That is what gets it the packed `.bin`; a server that
+doesn't know `pi_client` answers 400 and the client pairs as `pi_png_client`.
 
 The server responds in one of two shapes:
 
@@ -508,14 +525,12 @@ capacity we advertise.
 
 ### Verifying a frame without a render payload
 
-This is the one place the two Pi clients genuinely differ. The
-[`.bin` client](https://github.com/dmellok/tesserae-device-pi-bin) paints a
-headerless packed 4-bpp buffer whose length is *exactly*
-`panel_w * panel_h / 2`, so it can reject a bad relay or cache frame with a
-single length comparison. A PNG has no fixed length, so on the paths where
-bytes arrive **without** a trusted `{url, rotate, scale, bg, saturation}`
-announcement — the cache and the relay — `png_frame.py` substitutes three
-structural checks:
+A packed `.bin` frame is a headerless buffer whose length is *exactly*
+`panel_w * panel_h / 2`, so a bad relay or cache frame of that kind is
+rejected with a single length comparison. A PNG has no fixed length, so on
+the paths where bytes arrive **without** a trusted
+`{url, rotate, scale, bg, saturation}` announcement (the cache and the
+relay) `frame.load()` applies three structural checks instead:
 
 1. the **PNG signature**, which catches a proxy error page or a truncated
    download before the decoder ever sees it;
@@ -565,7 +580,9 @@ transport_mode = "relay"
 tesserae-pi-client --pair CODE   # code from Settings -> Cloud relay
 ```
 
-The panel self-reports `model: "pi_png_client"` plus the detected
+The panel self-reports `model: "pi_png_client"` (the PNG kind every home
+server knows; there is no register reply over the relay to fall back from)
+plus the detected
 `panel_w`/`panel_h` when it pairs, so home renders PNGs at this panel's
 geometry without the operator pre-entering anything.
 
@@ -607,23 +624,34 @@ derivation that is merely *plausible* round-trips against itself while
 never agreeing with home, and the only field symptom is that frames
 silently never appear.
 
-## OTA state reporting
+## Updates (signed OTA)
 
-This client **does not install anything**. What it does is report update
-attempts to the server's Devices UI, using the same `ota` object the
-firmware sends:
+When the server has a newer release for the device's kind (promoted, or
+staged for this device), its status reply carries a signed descriptor. The
+client checks it as the firmware does, then installs it:
+
+1. The Ed25519 signature against the public key built into the client
+   (`prod-1`), the manifest's kind (a Pi kind) and that the version is newer.
+2. The downloaded wheel against the signed size and SHA-256, and that it is
+   this package at that version.
+3. `pip install` into the client's venv, after noting what was installed
+   before; the service restarts into the new version.
+4. The new version confirms after its first good round-trip with the server.
+   Until then a small guard (`ota-guard.py`, run by systemd before each start)
+   counts restarts, and after three puts the previous version back.
+
+Progress shows on the server's Devices page through the same `ota` object
+the firmware sends:
 
 ```json
 { "ota": { "schema": 1, "phase": "confirmed", "reason": "ok",
            "target_fw": "1.6.0", "attempt_id": "a3f19c" } }
 ```
 
-`schema` alone means idle, and is the capability advertisement that
-makes the server willing to offer an update at all. Whatever performs
-the update (apt, pip, git, a systemd timer) records progress through
-`OtaReporter`; state is persisted, because the transition worth having —
-`pending_confirm` → `confirmed`/`rolled_back` — spans the restart it is
-waiting on. Set `[ota].report_enabled = false` to stop advertising.
+`schema` alone means idle, and is the capability advertisement that makes
+the server willing to offer an update at all; set
+`[ota].report_enabled = false` to turn updates off. An update you install by
+hand (`git pull`, `pip install`) is reported the same way.
 
 `fw_version` is reported as plain SemVer. A source checkout used to emit
 `0.0.0+unknown`; a PEP 440 local-version segment doesn't parse as SemVer,
@@ -683,7 +711,12 @@ REST status POST only, like the environment sensor.
 
 ## Transform pipeline
 
-For each arriving frame:
+A packed `.bin` (exactly `width × height / 2` bytes for the panel) skips all
+of this: it is unpacked into the inky driver's buffer and shown. If a future
+inky release drops that buffer, the frame is expanded to an image and goes
+the slow way instead, so it costs speed, not a blank panel.
+
+For each PNG:
 
 1. Download the PNG via plain HTTP (size capped at `max_frame_bytes`).
 2. Decode with PIL, coerce to mode `RGB`.
@@ -696,6 +729,30 @@ For each arriving frame:
 5. Hand to `panel.set_image(img, saturation=...)`, then `panel.show()`.
 
 ---
+
+## On the panel, the buttons and the settings page
+
+**Status screens.** With no dashboard to show, the panel says what is going
+on: how to pair, "Almost done" (click Register on the server), "Connected"
+(waiting for the first dashboard), "Can't reach the server" (only on a Pi
+that has never shown a dashboard; otherwise the last one stays up) and
+"Battery empty" on a UPS. Each is painted once, not on every retry.
+
+**Front buttons** (Inky Impression A-D, `[buttons]` in the config): A previous,
+B refresh, C next by default. Holding refresh:
+
+| Hold refresh, then let go | Does |
+|---|---|
+| under 3 s | refresh |
+| 3-19 s | unlocks the settings page for 15 minutes (the panel shows its address and a QR code) |
+| 20 s | factory reset: forgets the pairing, keeps server, buttons and sensors, and starts pairing again (also `tesserae-pi-client --factory-reset`) |
+
+**Settings page:** `http://<pi>:8790/`. Always shows the client's status. It
+takes changes (server, transport, pairing code, device id, factory reset)
+only while the Pi is unpaired, or for 15 minutes after the unlock above.
+
+**Logs:** when you collect logs from the device's page on the server, or a
+paint fails, the client sends its recent log (tokens and keys blanked).
 
 ## Troubleshooting
 
