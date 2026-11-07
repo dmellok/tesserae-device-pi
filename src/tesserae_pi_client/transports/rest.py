@@ -30,7 +30,7 @@ from typing import Any
 
 import requests
 
-from .. import diagnostics, screens
+from .. import diagnostics, lan, screens
 from .. import frame as frames
 from ..battery import BatteryMonitor
 from ..battery import payload_for as battery_payload
@@ -703,7 +703,11 @@ def run(
             )
             screens.SCREENS.show(
                 screens.waiting_for_register(
-                    config.rest.server_url, status.ip, status.fw_version, config.mqtt.device_id
+                    config.rest.server_url,
+                    status.ip,
+                    status.fw_version,
+                    config.mqtt.device_id,
+                    settings_url=lan.lan_url(status.ip),
                 )
             )
             updated = _claim_via_discover(client, config, status, shutdown, config_path)
@@ -746,6 +750,7 @@ def run(
             report,
             on_press=lambda _a: wake.set(),
             on_reset_hold=lambda: _request(reset_requested, wake),
+            on_unlock_hold=lan.ACCESS.unlock,
         )
         watcher.start()
 

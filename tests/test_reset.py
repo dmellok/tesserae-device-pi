@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from tesserae_pi_client.buttons import RESET_HOLD_S, check_holds
+from tesserae_pi_client.buttons import RESET_HOLD_S, UNLOCK_HOLD_S, check_holds
 from tesserae_pi_client.config import (
     factory_reset,
     load_config,
@@ -64,23 +64,29 @@ def test_a_reset_config_round_trips(tmp_path: Path) -> None:
 # --- the 20 s hold -------------------------------------------------------------
 
 
-def test_a_released_button_never_fires() -> None:
+def test_a_quick_press_does_nothing_more() -> None:
     held = {6: 0.0}
-    assert check_holds(held, RESET_HOLD_S + 1, pressed=lambda _pin: False) is False
+    assert check_holds(held, 1.0, pressed=lambda _pin: False) == set()
     assert held == {}
 
 
-def test_a_short_hold_keeps_waiting() -> None:
+def test_releasing_after_a_few_seconds_unlocks_settings() -> None:
     held = {6: 0.0}
-    assert check_holds(held, RESET_HOLD_S - 1, pressed=lambda _pin: True) is False
+    assert check_holds(held, UNLOCK_HOLD_S + 1, pressed=lambda _pin: False) == {"unlock"}
+    assert held == {}
+
+
+def test_a_hold_still_down_keeps_waiting() -> None:
+    held = {6: 0.0}
+    assert check_holds(held, RESET_HOLD_S - 1, pressed=lambda _pin: True) == set()
     assert held == {6: 0.0}
 
 
-def test_a_full_hold_fires_once() -> None:
+def test_a_full_hold_resets_once_and_never_unlocks() -> None:
     held = {6: 0.0}
-    assert check_holds(held, RESET_HOLD_S, pressed=lambda _pin: True) is True
+    assert check_holds(held, RESET_HOLD_S, pressed=lambda _pin: True) == {"reset"}
     assert held == {}
-    assert check_holds(held, RESET_HOLD_S + 5, pressed=lambda _pin: True) is False
+    assert check_holds(held, RESET_HOLD_S + 5, pressed=lambda _pin: False) == set()
 
 
 # --- always on -----------------------------------------------------------------

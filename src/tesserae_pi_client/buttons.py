@@ -68,11 +68,13 @@ class ButtonWatcher:
         report: ButtonReport,
         on_press: Callable[[str], None] | None = None,
         on_reset_hold: Callable[[], None] | None = None,
+        on_unlock_hold: Callable[[], None] | None = None,
     ) -> None:
         self._cfg = cfg
         self._report = report
         self._on_press = on_press
         self._on_reset_hold = on_reset_hold
+        self._on_unlock_hold = on_unlock_hold
         # pin -> monotonic time its press began, for the refresh pin(s) only,
         # while the button is still down (see check_holds).
         self._held_since: dict[int, float] = {}
@@ -221,7 +223,7 @@ class ButtonWatcher:
                 )
                 if self._on_press is not None:
                     self._on_press(action)
-                if action == RESET_ACTION and self._on_reset_hold is not None:
+                if action == RESET_ACTION and (self._on_reset_hold or self._on_unlock_hold):
                     self._held_since[pin] = now
 
     def _poll_holds(self, request: Any, now: float) -> None:
@@ -237,36 +239,51 @@ class ButtonWatcher:
             return bool(request.get_value(offset) == Value.INACTIVE)
 
         try:
-            fired = check_holds(self._held_since, now, pressed)
+            events = check_holds(self._held_since, now, pressed)
         except Exception as exc:  # noqa: BLE001 - a bad read must not kill paint
             log.warning("buttons: hold check failed (%s); ignoring", exc)
             self._held_since.clear()
             return
-        if fired and self._on_reset_hold is not None:
+        if "reset" in events and self._on_reset_hold is not None:
             log.warning("refresh held %ds: factory reset", RESET_HOLD_S)
             self._on_reset_hold()
+        elif "unlock" in events and self._on_unlock_hold is not None:
+            log.info("refresh held and released: settings page unlocked")
+            self._on_unlock_hold()
 
 
 #: The button whose long hold factory-resets the Pi, as on the firmware.
 RESET_ACTION = "refresh"
 #: How long it must be held, in seconds (the firmware's figure).
 RESET_HOLD_S = 20.0
+#: Released after at least this long (and before the reset): unlock the LAN
+#: settings page, as releasing the firmware's Refresh at 3-19 s opens its
+#: maintenance mode.
+UNLOCK_HOLD_S = 3.0
 
 
-def check_holds(held_since: dict[int, float], now: float, pressed: Callable[[int], bool]) -> bool:
-    """Advance the hold timers; True once a pin has been down ``RESET_HOLD_S``.
+def check_holds(
+    held_since: dict[int, float], now: float, pressed: Callable[[int], bool]
+) -> set[str]:
+    """Advance the hold timers and return what happened: ``reset`` once a pin
+    has been down ``RESET_HOLD_S``, ``unlock`` when one is released after at
+    least ``UNLOCK_HOLD_S`` (but before the reset).
 
     ``held_since`` (pin -> press time) is updated in place: a released pin
-    drops out, and a pin that fires drops out too, so one hold resets once.
+    drops out, and a pin that fires drops out too, so one hold acts once.
+    Release is seen on the next poll (every 0.5 s), close enough to a 3 s mark.
     """
-    fired = False
+    events: set[str] = set()
     for pin, since in list(held_since.items()):
+        held = now - since
         if not pressed(pin):
             del held_since[pin]
-        elif now - since >= RESET_HOLD_S:
+            if held >= UNLOCK_HOLD_S:
+                events.add("unlock")
+        elif held >= RESET_HOLD_S:
             del held_since[pin]
-            fired = True
-    return fired
+            events.add("reset")
+    return events
 
 
 def timedelta_or_none(seconds: float) -> Any:
@@ -282,6 +299,7 @@ __all__ = [
     "PIN_C_SMALL",
     "RESET_ACTION",
     "RESET_HOLD_S",
+    "UNLOCK_HOLD_S",
     "ButtonWatcher",
     "check_holds",
     "default_pin_c",

@@ -26,6 +26,8 @@ dependencies = [
     # relay_crypto.py: X25519 + HKDF-SHA256 + AES-256-GCM for the cloud-relay
     # transport, pinned to docs/relay/contract.md's golden vectors.
     "cryptography>=42",
+    # screens.py: the QR code to the LAN settings page. Pure Python, no deps.
+    "segno>=1.5",
 ]
 
 [project.optional-dependencies]
@@ -57,6 +59,10 @@ strict = false
 module = [
     "tesserae_pi_client.config",
     "tesserae_pi_client.frame",
+    "tesserae_pi_client.lan",
+    "tesserae_pi_client.ota_apply",
+    "tesserae_pi_client.ota_guard",
+    "tesserae_pi_client.diagnostics",
     "tesserae_pi_client.migrate",
     "tesserae_pi_client.transforms",
     "tesserae_pi_client.heartbeat",

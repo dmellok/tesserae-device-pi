@@ -47,6 +47,8 @@ class Screen:
     title: str
     lines: tuple[str, ...] = ()
     footer: str = ""
+    #: A URL drawn as a QR code on the right, for a phone to open.
+    qr: str = ""
 
 
 def pairing_with_code(server_url: str, ip: str, version: str) -> Screen:
@@ -65,16 +67,26 @@ def pairing_with_code(server_url: str, ip: str, version: str) -> Screen:
     )
 
 
-def waiting_for_register(server_url: str, ip: str, version: str, device_id: str) -> Screen:
+def waiting_for_register(
+    server_url: str, ip: str, version: str, device_id: str, settings_url: str = ""
+) -> Screen:
+    lines: tuple[str, ...] = (
+        f"Open {server_url}",
+        "Settings > Devices, and click",
+        f"Register on {device_id}.",
+    )
+    if settings_url:
+        lines += ("", "Wrong server? Scan to change it:", settings_url)
+    return Screen("register", "Almost done", lines, _footer(ip, version), qr=settings_url)
+
+
+def settings_unlocked(settings_url: str, ip: str, version: str) -> Screen:
     return Screen(
-        "register",
-        "Almost done",
-        (
-            f"Open {server_url}",
-            "Settings > Devices, and click",
-            f"Register on {device_id}.",
-        ),
+        "unlocked",
+        "Settings unlocked",
+        ("For 15 minutes, open:", settings_url, "", "or scan the code."),
         _footer(ip, version),
+        qr=settings_url,
     )
 
 
@@ -134,6 +146,12 @@ def render(screen: Screen, size: tuple[int, int]) -> Image.Image:
     margin = unit * 2
     title_font, body_font, small_font = _font(unit * 2), _font(unit), _font(max(8, unit * 2 // 3))
 
+    text_w = width - 2 * margin - unit
+    if screen.qr:
+        side = _draw_qr(img, screen.qr, width, height, margin)
+        if side:
+            text_w -= side + unit
+
     y = margin
     draw.rectangle([(margin, y), (margin + unit // 2, y + unit * 2)], fill=_ACCENT)
     draw.text((margin + unit, y), screen.title, font=title_font, fill=_INK)
@@ -142,7 +160,7 @@ def render(screen: Screen, size: tuple[int, int]) -> Image.Image:
         if line:
             draw.text(
                 (margin + unit, y),
-                _fit(draw, line, body_font, width - 2 * margin),
+                _fit(draw, line, body_font, text_w),
                 font=body_font,
                 fill=_INK,
             )
@@ -150,6 +168,29 @@ def render(screen: Screen, size: tuple[int, int]) -> Image.Image:
     if screen.footer:
         draw.text((margin, height - margin), screen.footer, font=small_font, fill=_INK, anchor="ls")
     return img
+
+
+def _draw_qr(img: Image.Image, data: str, width: int, height: int, margin: int) -> int:
+    """A QR code for ``data`` at the right edge; returns its side, or 0 when
+    the panel is too small to hold a scannable one (or segno is missing)."""
+    try:
+        import segno
+    except ImportError:
+        return 0
+    qr = segno.make(data, error="m", micro=False)
+    modules = int(qr.symbol_size(scale=1, border=0)[0])
+    scale = min((height - 2 * margin) // modules, (width // 3) // modules)
+    if scale < 2:
+        return 0
+    side = modules * scale
+    x0, y0 = width - margin - side, (height - side) // 2
+    draw = ImageDraw.Draw(img)
+    for row_index, row in enumerate(qr.matrix):
+        for col_index, dark in enumerate(row):
+            if dark:
+                x, y = x0 + col_index * scale, y0 + row_index * scale
+                draw.rectangle([(x, y), (x + scale - 1, y + scale - 1)], fill=_INK)
+    return side
 
 
 def _fit(draw: ImageDraw.ImageDraw, text: str, font: object, max_w: int) -> str:
@@ -223,6 +264,7 @@ __all__ = [
     "pairing_with_code",
     "render",
     "server_unreachable",
+    "settings_unlocked",
     "waiting_for_frame",
     "waiting_for_register",
 ]

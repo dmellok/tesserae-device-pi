@@ -8,7 +8,7 @@ import threading
 from pathlib import Path
 from typing import Any
 
-from . import __version__, diagnostics, screens
+from . import __version__, diagnostics, lan, screens
 from .config import (
     DEFAULT_CONFIG_PATH,
     Config,
@@ -134,6 +134,38 @@ def _do_run(config: Config, config_path: Path) -> int:
     signal.signal(signal.SIGINT, _signal_handler)
     signal.signal(signal.SIGTERM, _signal_handler)
 
+    page = _start_lan_page(config_path, status, shutdown)
+    try:
+        code = _run_transport(config, status, paint_fn, shutdown, config_path)
+    finally:
+        if page is not None:
+            page.stop()
+    # A change made on the settings page, written now that nothing else is.
+    if lan.PENDING.any():
+        save_config(lan.apply_pending(load_config(config_path), lan.PENDING), config_path)
+        log.warning("settings changed on the LAN page; restarting")
+        return lan.SETTINGS_RESTART_EXIT
+    return code
+
+
+def _start_lan_page(config_path: Path, status: Status, shutdown: threading.Event) -> Any:
+    """The settings page (lan.py). Never fatal: a port in use costs the page."""
+    try:
+        page = lan.LanServer(config_path, status, shutdown)
+    except OSError as exc:
+        log.warning("settings page not started (%s)", exc)
+        return None
+    page.start()
+    url = lan.lan_url(status.ip, page.port)
+    lan.ACCESS.on_unlock(
+        lambda: screens.SCREENS.show(screens.settings_unlocked(url, status.ip, status.fw_version))
+    )
+    return page
+
+
+def _run_transport(
+    config: Config, status: Status, paint_fn: Any, shutdown: threading.Event, config_path: Path
+) -> int:
     if config.transport_mode == "rest":
         log.info(
             "transport_mode=rest; using HTTP polling against %s",

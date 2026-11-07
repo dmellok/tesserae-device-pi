@@ -30,6 +30,7 @@ from typing import Any
 
 import requests
 
+from .. import lan
 from ..button_report import ButtonReport
 from ..config import FACTORY_RESET_EXIT, Config, factory_reset, save_config, with_relay_updates
 from ..frame import FrameRejected, load
@@ -375,6 +376,7 @@ def run(
             report,
             on_press=lambda _a: wake.set(),
             on_reset_hold=lambda: _request(reset_requested, wake),
+            on_unlock_hold=lan.ACCESS.unlock,
         )
         watcher.start()
 

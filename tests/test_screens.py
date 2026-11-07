@@ -92,3 +92,12 @@ def test_battery_empty_only_on_a_ups_running_flat(
     monkeypatch.setattr(screens, "SCREENS", painter)
     rest._show_if_battery_empty(body)
     assert bool(painted) is shown
+
+
+def test_the_unlock_screen_carries_a_qr_code_beside_the_text() -> None:
+    url = "http://192.168.1.20:8790/"
+    with_qr = render(screens.settings_unlocked(url, "192.168.1.20", "0.9.0"), (800, 480))
+    right = with_qr.crop((520, 0, 800, 480))
+    assert right.getextrema() != ((255, 255), (255, 255), (255, 255))  # the code is drawn
+    # Too small for a scannable code: text only, no crash.
+    assert render(screens.settings_unlocked(url, "", "0.9.0"), (212, 104)).size == (212, 104)
