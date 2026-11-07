@@ -165,11 +165,13 @@ def check_image(manifest: dict[str, Any], image: bytes) -> None:
 
 def current_install(dist: str = DIST_NAME, cache_root: Path | None = None) -> list[str]:
     """pip arguments that put the running install back: the editable checkout
-    install.sh made, or the wheel a previous update installed."""
+    install.sh made, the wheel a previous update installed, or else the
+    running version from PyPI (a ``pip install tesserae-device-pi``)."""
     try:
-        raw = metadata.distribution(dist).read_text("direct_url.json")
+        installed = metadata.distribution(dist)
     except metadata.PackageNotFoundError:
-        raw = None
+        return []
+    raw = installed.read_text("direct_url.json")
     if raw:
         try:
             info = json.loads(raw)
@@ -180,6 +182,8 @@ def current_install(dist: str = DIST_NAME, cache_root: Path | None = None) -> li
             return ["-e", url[len("file://") :]]
     if cache_root is not None and (cache_root / INSTALLED_WHEEL).exists():
         return [str(cache_root / INSTALLED_WHEEL)]
+    if version_tuple(installed.version or ""):
+        return [f"{dist}=={installed.version}"]
     return []
 
 

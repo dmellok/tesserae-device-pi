@@ -10,6 +10,12 @@ readme = "README.md"
 license = { text = "AGPL-3.0-or-later" }
 requires-python = ">=3.11"
 authors = [{ name = "Tesserae" }]
+keywords = ["tesserae", "e-ink", "e-paper", "raspberry-pi", "inky"]
+classifiers = [
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Topic :: Home Automation",
+]
 dependencies = [
     "paho-mqtt>=2.0,<3",
     "Pillow>=10,<12",
@@ -29,6 +35,11 @@ dependencies = [
     # screens.py: the QR code to the LAN settings page. Pure Python, no deps.
     "segno>=1.5",
 ]
+
+[project.urls]
+Homepage = "https://tesserae.ink"
+Source = "https://github.com/dmellok/tesserae-device-pi"
+Issues = "https://github.com/dmellok/tesserae-device-pi/issues"
 
 [project.optional-dependencies]
 dev = [

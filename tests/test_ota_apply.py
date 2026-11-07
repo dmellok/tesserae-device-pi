@@ -325,3 +325,36 @@ def test_an_offer_in_a_status_reply_installs_and_exits_for_systemd(tmp_path: Pat
     telemetry.after_status({"ota": _descriptor(image)}, "pi_client")
     assert telemetry.restart_requested is True and len(installed) == 1
     assert rest.OTA_RESTART_EXIT == 4
+
+
+class _Dist:
+    def __init__(self, version: str, direct_url: str | None) -> None:
+        self.version = version
+        self._direct_url = direct_url
+
+    def read_text(self, name: str) -> str | None:
+        return self._direct_url if name == "direct_url.json" else None
+
+
+def test_the_rollback_target_is_the_checkout_then_the_last_wheel_then_pypi(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    editable = '{"url": "file:///home/pi/checkout", "dir_info": {"editable": true}}'
+    monkeypatch.setattr(ota_apply.metadata, "distribution", lambda _d: _Dist("0.9.0", editable))
+    assert ota_apply.current_install(cache_root=tmp_path) == ["-e", "/home/pi/checkout"]
+
+    # Installed from PyPI: no direct_url.json.
+    monkeypatch.setattr(ota_apply.metadata, "distribution", lambda _d: _Dist("0.9.0", None))
+    assert ota_apply.current_install(cache_root=tmp_path) == ["tesserae-device-pi==0.9.0"]
+    (tmp_path / ota_apply.INSTALLED_WHEEL).write_bytes(b"whl")
+    assert ota_apply.current_install(cache_root=tmp_path) == [
+        str(tmp_path / ota_apply.INSTALLED_WHEEL)
+    ]
+
+
+def test_no_rollback_target_when_not_installed(monkeypatch: pytest.MonkeyPatch) -> None:
+    def missing(_d: str) -> None:
+        raise ota_apply.metadata.PackageNotFoundError(_d)
+
+    monkeypatch.setattr(ota_apply.metadata, "distribution", missing)
+    assert ota_apply.current_install() == []

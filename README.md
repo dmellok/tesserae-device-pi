@@ -78,6 +78,19 @@ Useful flags:
 --user USER        user the systemd unit runs as (default: $USER)
 ```
 
+### From PyPI
+
+```bash
+sudo raspi-config nonint do_spi 0 && sudo raspi-config nonint do_i2c 0
+python3 -m venv ~/.venvs/tesserae-device-pi
+~/.venvs/tesserae-device-pi/bin/pip install tesserae-device-pi
+~/.venvs/tesserae-device-pi/bin/tesserae-device-pi --paint-test
+```
+
+The same wheel the release signs for over-the-air updates. It runs in the
+foreground; the systemd service (and its update rollback guard) comes from
+`scripts/install-service.sh` in a checkout, so the one-shot install above is
+still the easy way to a Pi that starts on boot.
 ### Manual (if you prefer step-by-step)
 
 ```bash
@@ -619,7 +632,7 @@ dedups on the event id, so repeating is safe.
 
 The wire contract is `docs/relay/contract.md` in the Tesserae repo, and
 it is authoritative for all three sides. Its golden vectors are pinned
-in [tests/test_relay_crypto.py](tests/test_relay_crypto.py) — a
+in [tests/test_relay_crypto.py](https://github.com/dmellok/tesserae-device-pi/blob/main/tests/test_relay_crypto.py) — a
 derivation that is merely *plausible* round-trips against itself while
 never agreeing with home, and the only field symptom is that frames
 silently never appear.

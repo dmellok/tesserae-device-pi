@@ -1,0 +1,77 @@
+name: pypi
+
+# Publish a release to PyPI as tesserae-device-pi, so a Pi can
+# `pip install tesserae-device-pi`.
+#
+# The wheel uploaded is the one release.yml attached to the GitHub release,
+# not a rebuild: it is byte for byte the file signed for OTA, so a pip install
+# and an over-the-air update put the same bytes on the Pi. The sdist is built
+# from the tag.
+#
+# PyPI Trusted Publishing (OIDC), no token secret. One-time setup on PyPI: a
+# (pending) publisher for project tesserae-device-pi, repository
+# dmellok/tesserae-device-pi, workflow pypi.yml, environment pypi.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to publish (e.g. v0.9.0)'
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Resolve version
+        id: ver
+        run: |
+          v='${{ github.event.release.tag_name || inputs.tag }}'
+          echo "tag=$v" >> "$GITHUB_OUTPUT"
+          echo "version=${v#v}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.ver.outputs.tag }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Wait for the release's wheel
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          whl="tesserae_device_pi-${{ steps.ver.outputs.version }}-py3-none-any.whl"
+          # release.yml builds and attaches it a few minutes after publishing.
+          for _ in $(seq 1 60); do
+            if gh release view '${{ steps.ver.outputs.tag }}' --json assets -q '.assets[].name' | grep -qx "$whl"; then
+              mkdir -p dist
+              gh release download '${{ steps.ver.outputs.tag }}' -p "$whl" -D dist
+              exit 0
+            fi
+            sleep 20
+          done
+          echo "no $whl on release ${{ steps.ver.outputs.tag }} after 20 minutes" >&2
+          exit 1
+
+      - name: Build the sdist
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade build twine
+          python -m build --sdist
+          python -m twine check dist/*
+          ls -l dist
+
+      - uses: pypa/gh-action-pypi-publish@release/v1
