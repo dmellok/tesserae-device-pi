@@ -44,8 +44,22 @@ for old_unit in tesserae-pi-png-client.service tesserae-pi-bin-client.service; d
     fi
 done
 
+# The venv's python (for the OTA guard and pip) and the service user's cache
+# dir, where an update stages its wheel and the guard keeps its record.
+CLIENT_BIN="$(readlink -f "$(command -v tesserae-pi-client)")"
+VENV_PYTHON="$(dirname "${CLIENT_BIN}")/python"
+SERVICE_HOME="$(getent passwd "${SERVICE_USER}" | cut -d: -f6)"
+CACHE_DIR="${SERVICE_HOME}/.cache/tesserae-pi-client"
+install -d -o "${SERVICE_USER}" -g "${SERVICE_USER}" "${CACHE_DIR}"
+install -o "${SERVICE_USER}" -g "${SERVICE_USER}" -m 0644 \
+    "$("${VENV_PYTHON}" -c 'import tesserae_pi_client.ota_guard as g; print(g.__file__)')" \
+    "${CACHE_DIR}/ota-guard.py"
+
 echo "installing ${UNIT_NAME} for user ${SERVICE_USER}"
-sed "s|@USER@|${SERVICE_USER}|g" "${UNIT_TEMPLATE}" > "${UNIT_DEST}"
+sed -e "s|@USER@|${SERVICE_USER}|g" \
+    -e "s|@PYTHON@|${VENV_PYTHON}|g" \
+    -e "s|@CACHE@|${CACHE_DIR}|g" \
+    "${UNIT_TEMPLATE}" > "${UNIT_DEST}"
 chmod 0644 "${UNIT_DEST}"
 
 systemctl daemon-reload

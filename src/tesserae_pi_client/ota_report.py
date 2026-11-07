@@ -20,9 +20,9 @@ than RTC memory: the interesting transitions are precisely the ones that span
 a restart (`pending_confirm` → `confirmed` or `rolled_back`), so in-memory
 state would lose exactly the report worth having.
 
-This module reports; it does not update. Deciding to install, and installing,
-is the operator's business (apt, pip, git, a systemd timer) — this just gives
-whatever does it a place to record what happened.
+This module reports. ota_apply.py installs an update the server offers and
+records its progress here; an operator updating by hand (pip, git) is
+reported the same way through resolve_boot().
 """
 
 from __future__ import annotations
@@ -122,6 +122,11 @@ class OtaReporter:
             )
         except OSError as exc:
             log.warning("ota: could not persist state (%s)", exc)
+
+    @property
+    def path(self) -> Path:
+        """Where the state is kept (the rollback guard writes here too)."""
+        return self._path
 
     @property
     def state(self) -> OtaState:

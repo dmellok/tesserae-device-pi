@@ -23,6 +23,7 @@ import logging
 import threading
 import time
 import uuid
+from collections.abc import Callable
 from dataclasses import replace
 from pathlib import Path
 from typing import Any
@@ -48,6 +49,7 @@ from ..environment import EnvironmentSensor
 from ..environment import payload_for as env_payload
 from ..heartbeat import LEGACY_KIND, Status, _wifi_rssi
 from ..mqtt_loop import PaintFn, parse_frame_payload
+from ..ota_apply import OTA_RESTART_EXIT, OtaUpdater
 from ..ota_report import OtaReporter
 
 log = logging.getLogger(__name__)
@@ -621,13 +623,26 @@ class Telemetry:
     has one place to ask for "everything else that rides the status body".
     """
 
-    def __init__(self, config: Config, running_fw: str) -> None:
+    def __init__(
+        self,
+        config: Config,
+        running_fw: str,
+        download: Callable[[str, int], bytes] | None = None,
+    ) -> None:
         self._ota: OtaReporter | None = None
+        self._updater: OtaUpdater | None = None
+        #: Set once an update is installed: the loop exits for systemd to
+        #: start the new version.
+        self.restart_requested = False
         if config.ota.report_enabled:
             self._ota = OtaReporter(config.ota.state_path(config.cache.root_path()))
             # Resolve a pending_confirm left by an update across the restart
             # it was waiting on — the one transition in-memory state can't see.
             self._ota.resolve_boot(running_fw)
+            if download is not None:
+                self._updater = OtaUpdater(
+                    self._ota, config.cache.root_path(), running_fw, download
+                )
 
         self._sensor: EnvironmentSensor | None = None
         if config.environment.sensor:
@@ -636,6 +651,16 @@ class Telemetry:
         self._battery: BatteryMonitor | None = None
         if config.battery.source:
             self._battery = BatteryMonitor(config.battery.source, config.battery.i2c_bus)
+
+    def after_status(self, body: Any, kind: str) -> None:
+        """A status POST was accepted: the running version is healthy (keep
+        a pending update), and apply one the server offers in the reply."""
+        if self._updater is None:
+            return
+        self._updater.confirm()
+        offer = body.get("ota") if isinstance(body, dict) else None
+        if isinstance(offer, dict) and "payload" in offer and "signature" in offer:
+            self.restart_requested = self._updater.apply(offer, kind)
 
     def payload(self) -> dict[str, Any]:
         out: dict[str, Any] = {}
@@ -703,7 +728,12 @@ def run(
         enabled=config.cache.enabled,
     )
 
-    telemetry = Telemetry(config, status.fw_version)
+    def ota_download(url: str, size: int) -> bytes:
+        if url.startswith("/"):
+            url = config.rest.server_url.rstrip("/") + url
+        return client.download(url, max_bytes=size, timeout_s=120.0)
+
+    telemetry = Telemetry(config, status.fw_version, download=ota_download)
 
     watcher = None
     if config.buttons.enabled:
@@ -752,6 +782,8 @@ def run(
             )
             if should_exit:
                 return 2
+            if telemetry.restart_requested:
+                return OTA_RESTART_EXIT
             # An album pending playback caps the sleep, so the next photo
             # lands on its interval rather than on the server poll cadence.
             interval = cache.album_interval_s
@@ -1022,6 +1054,10 @@ def _wake_cycle(
 
     config, next_poll = _apply_status_response(config, post_body, config_path)
     diagnostics.DIAG.acknowledge(body_out)
+    if telemetry is not None:
+        telemetry.after_status(post_body, status.kind)
+        if telemetry.restart_requested:
+            return config, 0, False
     if diagnostics.upload_requested(post_body):
         _upload_log(client, device_id, token, status)
 
