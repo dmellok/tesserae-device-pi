@@ -2,6 +2,7 @@
 ones: a cache that can serve a wrong frame is worse than no cache, because you
 get yesterday's dashboard with no error anywhere.
 """
+
 from __future__ import annotations
 
 from pathlib import Path

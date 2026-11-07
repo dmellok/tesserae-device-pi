@@ -4,6 +4,7 @@ This client reports; it never installs. The transition worth the persistence
 is pending_confirm -> confirmed/rolled_back, which by definition spans the
 restart it is waiting on.
 """
+
 from __future__ import annotations
 
 from pathlib import Path

@@ -6,6 +6,7 @@ has no fixed length, so these three checks — signature, real decode, dimension
 against the live panel — are what stands in for it. Weakening them would leave
 the relay and cache paths trusting bytes nothing has validated.
 """
+
 from __future__ import annotations
 
 import io

@@ -23,6 +23,7 @@ Layout mirrors the firmware's card:
     <root>/collections/<collection_id>/manifest.json
     <root>/collections/<collection_id>/<digest>.png
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -118,14 +119,17 @@ class FrameCache:
         if expected_bytes is not None and len(data) != expected_bytes:
             log.warning(
                 "frame cache: %s is %d bytes, manifest says %d; ignoring",
-                path.name, len(data), expected_bytes,
+                path.name,
+                len(data),
+                expected_bytes,
             )
             return None
         actual = digest_of(data)
         if actual != digest:
             log.warning(
                 "frame cache: %s hashes to %s; discarding corrupt entry",
-                path.name, actual,
+                path.name,
+                actual,
             )
             self.delete(digest)
             return None
@@ -142,16 +146,15 @@ class FrameCache:
         if actual != digest:
             log.warning(
                 "frame cache: refusing to store %s — content hashes to %s",
-                digest, actual,
+                digest,
+                actual,
             )
             return False
         if not self.ensure():
             return False
         target = self.path_for(digest)
         try:
-            fd, tmp_name = tempfile.mkstemp(
-                prefix=f".{digest}.", suffix=".tmp", dir=str(self._dir)
-            )
+            fd, tmp_name = tempfile.mkstemp(prefix=f".{digest}.", suffix=".tmp", dir=str(self._dir))
             try:
                 with os.fdopen(fd, "wb") as f:
                     f.write(data)

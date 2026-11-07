@@ -2,6 +2,7 @@
 hiccup reads as 0x00 or 0xFF across every register, and a wrong battery
 figure is harder to notice than a missing one.
 """
+
 from __future__ import annotations
 
 import logging

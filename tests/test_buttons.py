@@ -5,6 +5,7 @@ client has no such setting, so the panel inky.auto() detected decides. Getting
 this wrong is quiet: the watcher arms a line nothing is wired to and presses
 simply never arrive.
 """
+
 from __future__ import annotations
 
 from tesserae_pi_client.buttons import PIN_C_LARGE, PIN_C_SMALL, default_pin_c

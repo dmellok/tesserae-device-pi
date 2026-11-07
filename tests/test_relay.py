@@ -10,6 +10,7 @@ against the live panel). Those tests are here rather than in test_png_frame
 because what matters is that the transport *refuses to paint*, not merely
 that the helper raises.
 """
+
 from __future__ import annotations
 
 import io
@@ -125,8 +126,13 @@ def _config(**relay_fields: Any) -> Config:
     defaults.update(relay_fields)
     return Config(
         mqtt=MqttConfig(
-            host="h", port=1883, username="", password="",
-            client_id="cid", keepalive=60, device_id="pi_png",
+            host="h",
+            port=1883,
+            username="",
+            password="",
+            client_id="cid",
+            keepalive=60,
+            device_id="pi_png",
         ),
         http=HttpConfig(download_timeout_s=5, max_frame_bytes=10_000_000),
         logging=LoggingConfig(level="INFO"),
@@ -175,21 +181,22 @@ def test_pairing_submits_then_polls_to_ready(tmp_path: Path) -> None:
     save_config(cfg, cfg_path)
 
     session = FakeSession()
-    session.queue(
-        "POST", f"{RELAY_URL}/v1/pair", FakeResponse(202, {"status": "pending"})
-    )
+    session.queue("POST", f"{RELAY_URL}/v1/pair", FakeResponse(202, {"status": "pending"}))
     session.queue(
         "GET",
         f"{RELAY_URL}/v1/pair/ABC123",
         FakeResponse(200, {"status": "pending"}),
-        FakeResponse(200, {
-            "status": "ready",
-            "install_id": "inst1",
-            "device_id": "dev1",
-            "device_token": "TOK",
-            "home_pubkey": b64url_encode(public_key_for(HOME_PRIV)),
-            "config": {"sleep_interval_s": 300},
-        }),
+        FakeResponse(
+            200,
+            {
+                "status": "ready",
+                "install_id": "inst1",
+                "device_id": "dev1",
+                "device_token": "TOK",
+                "home_pubkey": b64url_encode(public_key_for(HOME_PRIV)),
+                "config": {"sleep_interval_s": 300},
+            },
+        ),
     )
     client = RelayClient(RELAY_URL, session=session)  # type: ignore[arg-type]
 
@@ -216,13 +223,16 @@ def test_derived_key_matches_what_home_would_derive(tmp_path: Path) -> None:
     session.queue(
         "GET",
         f"{RELAY_URL}/v1/pair/ABC123",
-        FakeResponse(200, {
-            "status": "ready",
-            "install_id": "inst1",
-            "device_id": "dev1",
-            "device_token": "TOK",
-            "home_pubkey": b64url_encode(public_key_for(HOME_PRIV)),
-        }),
+        FakeResponse(
+            200,
+            {
+                "status": "ready",
+                "install_id": "inst1",
+                "device_id": "dev1",
+                "device_token": "TOK",
+                "home_pubkey": b64url_encode(public_key_for(HOME_PRIV)),
+            },
+        ),
     )
     client = RelayClient(RELAY_URL, session=session)  # type: ignore[arg-type]
     out = _pair(client, cfg, _status(), FakeShutdown(), cfg_path)  # type: ignore[arg-type]
@@ -244,9 +254,7 @@ def test_pairing_post_happens_exactly_once_across_restarts(tmp_path: Path) -> No
 
     session = FakeSession()
     session.queue("POST", f"{RELAY_URL}/v1/pair", FakeResponse(202, {}))
-    session.queue(
-        "GET", f"{RELAY_URL}/v1/pair/ABC123", FakeResponse(200, {"status": "pending"})
-    )
+    session.queue("GET", f"{RELAY_URL}/v1/pair/ABC123", FakeResponse(200, {"status": "pending"}))
     client = RelayClient(RELAY_URL, session=session)  # type: ignore[arg-type]
 
     # First run: submits, then gives up waiting (simulating a restart).
@@ -259,13 +267,16 @@ def test_pairing_post_happens_exactly_once_across_restarts(tmp_path: Path) -> No
     session2.queue(
         "GET",
         f"{RELAY_URL}/v1/pair/ABC123",
-        FakeResponse(200, {
-            "status": "ready",
-            "install_id": "inst1",
-            "device_id": "dev1",
-            "device_token": "TOK",
-            "home_pubkey": b64url_encode(public_key_for(HOME_PRIV)),
-        }),
+        FakeResponse(
+            200,
+            {
+                "status": "ready",
+                "install_id": "inst1",
+                "device_id": "dev1",
+                "device_token": "TOK",
+                "home_pubkey": b64url_encode(public_key_for(HOME_PRIV)),
+            },
+        ),
     )
     client2 = RelayClient(RELAY_URL, session=session2)  # type: ignore[arg-type]
     out = _pair(client2, resumed, _status(), FakeShutdown(), cfg_path)  # type: ignore[arg-type]
@@ -336,7 +347,8 @@ def test_sealed_frame_is_decrypted_decoded_and_painted(tmp_path: Path) -> None:
 
     session = FakeSession()
     session.queue(
-        "GET", _frame_url(),
+        "GET",
+        _frame_url(),
         FakeResponse(200, seal(_png(), key), headers={"ETag": '"abc"'}),
     )
     session.queue("POST", _status_url(), FakeResponse(200, {}))
@@ -344,8 +356,12 @@ def test_sealed_frame_is_decrypted_decoded_and_painted(tmp_path: Path) -> None:
 
     painted: list[Image] = []
     _wake_cycle(
-        client, cfg, _status(), lambda img, sat: painted.append(img),
-        cfg_path, ButtonReport(seed=1),
+        client,
+        cfg,
+        _status(),
+        lambda img, sat: painted.append(img),
+        cfg_path,
+        ButtonReport(seed=1),
     )
     assert len(painted) == 1
     assert painted[0].size == (PANEL_W, PANEL_H)
@@ -362,7 +378,8 @@ def test_bad_auth_tag_is_never_painted(tmp_path: Path) -> None:
 
     session = FakeSession()
     session.queue(
-        "GET", _frame_url(),
+        "GET",
+        _frame_url(),
         FakeResponse(200, seal(_png(), wrong_key), headers={"ETag": '"x"'}),
     )
     client = RelayClient(RELAY_URL, session=session)  # type: ignore[arg-type]
@@ -370,8 +387,12 @@ def test_bad_auth_tag_is_never_painted(tmp_path: Path) -> None:
     painted: list[Image] = []
     st = _status()
     _wake_cycle(
-        client, cfg, st, lambda img, sat: painted.append(img),
-        cfg_path, ButtonReport(seed=1),
+        client,
+        cfg,
+        st,
+        lambda img, sat: painted.append(img),
+        cfg_path,
+        ButtonReport(seed=1),
     )
     assert painted == []
     assert st.state == "error"
@@ -387,7 +408,8 @@ def test_a_decrypted_non_png_is_never_painted(tmp_path: Path) -> None:
 
     session = FakeSession()
     session.queue(
-        "GET", _frame_url(),
+        "GET",
+        _frame_url(),
         FakeResponse(200, seal(b"not an image at all", key), headers={"ETag": '"x"'}),
     )
     client = RelayClient(RELAY_URL, session=session)  # type: ignore[arg-type]
@@ -395,8 +417,12 @@ def test_a_decrypted_non_png_is_never_painted(tmp_path: Path) -> None:
     painted: list[Image] = []
     st = _status()
     _wake_cycle(
-        client, cfg, st, lambda img, sat: painted.append(img),
-        cfg_path, ButtonReport(seed=1),
+        client,
+        cfg,
+        st,
+        lambda img, sat: painted.append(img),
+        cfg_path,
+        ButtonReport(seed=1),
     )
     assert painted == []
     assert st.state == "error"
@@ -413,7 +439,8 @@ def test_wrong_decoded_dimensions_are_never_painted(tmp_path: Path) -> None:
 
     session = FakeSession()
     session.queue(
-        "GET", _frame_url(),
+        "GET",
+        _frame_url(),
         FakeResponse(
             200,
             seal(_png(320, 240), key),
@@ -429,8 +456,12 @@ def test_wrong_decoded_dimensions_are_never_painted(tmp_path: Path) -> None:
     painted: list[Image] = []
     st = _status()
     _wake_cycle(
-        client, cfg, st, lambda img, sat: painted.append(img),
-        cfg_path, ButtonReport(seed=1),
+        client,
+        cfg,
+        st,
+        lambda img, sat: painted.append(img),
+        cfg_path,
+        ButtonReport(seed=1),
     )
     assert painted == []
     assert st.state == "error"
@@ -450,8 +481,12 @@ def test_304_keeps_the_current_image(tmp_path: Path) -> None:
 
     painted: list[Image] = []
     _wake_cycle(
-        client, cfg, _status(), lambda img, sat: painted.append(img),
-        cfg_path, ButtonReport(seed=1),
+        client,
+        cfg,
+        _status(),
+        lambda img, sat: painted.append(img),
+        cfg_path,
+        ButtonReport(seed=1),
     )
     assert painted == []
     assert session.calls[0]["headers"]["If-None-Match"] == '"abc"'
@@ -508,9 +543,7 @@ def test_dropped_pairing_config_still_parses(tmp_path: Path) -> None:
     session = FakeSession()
     session.queue("GET", _frame_url(), FakeResponse(401))
     client = RelayClient(RELAY_URL, session=session)  # type: ignore[arg-type]
-    _wake_cycle(
-        client, cfg, _status(), lambda img, sat: None, cfg_path, ButtonReport(seed=1)
-    )
+    _wake_cycle(client, cfg, _status(), lambda img, sat: None, cfg_path, ButtonReport(seed=1))
 
     revived = parse_toml(cfg_path.read_text())
     assert revived.transport_mode == "relay"
@@ -572,15 +605,11 @@ def test_config_mailbox_pull_on_etag_change(tmp_path: Path) -> None:
 
 def test_run_aborts_without_relay_url(tmp_path: Path) -> None:
     cfg = _config(relay_url="", pairing_code="X")
-    rc = relay.run(
-        cfg, _status(), lambda img, sat: None, threading.Event(), tmp_path / "x.toml"
-    )
+    rc = relay.run(cfg, _status(), lambda img, sat: None, threading.Event(), tmp_path / "x.toml")
     assert rc == 2
 
 
 def test_run_aborts_without_key_or_code(tmp_path: Path) -> None:
     cfg = _config()
-    rc = relay.run(
-        cfg, _status(), lambda img, sat: None, threading.Event(), tmp_path / "x.toml"
-    )
+    rc = relay.run(cfg, _status(), lambda img, sat: None, threading.Event(), tmp_path / "x.toml")
     assert rc == 2

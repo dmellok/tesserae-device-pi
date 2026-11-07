@@ -20,6 +20,7 @@ true by construction rather than by convention:
 dedups against the last id it saw, and a client that restarts and replays
 0, 1, 2, ... would have its first presses silently swallowed as duplicates.
 """
+
 from __future__ import annotations
 
 import secrets
@@ -31,9 +32,7 @@ from dataclasses import dataclass
 # seed is kept well below that and the counter only ever increments.
 _EVENT_ID_SEED_MAX = 1 << 40
 
-BUTTON_REPORT_FALLBACK_NOTE = (
-    "delivered on /status only when the frame GET could not carry it"
-)
+BUTTON_REPORT_FALLBACK_NOTE = "delivered on /status only when the frame GET could not carry it"
 
 
 @dataclass(frozen=True)
@@ -56,9 +55,7 @@ class ButtonReport:
     def __init__(self, seed: int | None = None) -> None:
         self._lock = threading.Lock()
         self._pending: ButtonPress | None = None
-        self._next_id = (
-            seed if seed is not None else secrets.randbelow(_EVENT_ID_SEED_MAX)
-        )
+        self._next_id = seed if seed is not None else secrets.randbelow(_EVENT_ID_SEED_MAX)
 
     def set(self, name: str) -> ButtonPress:
         """Record a press, allocating it the next event id. Replaces any

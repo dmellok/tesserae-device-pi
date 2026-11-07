@@ -113,7 +113,8 @@ def _do_run(config: Config, config_path: Path) -> int:
 
     log.info(
         "transport_mode=mqtt; using MQTT broker at %s:%d",
-        config.mqtt.host, config.mqtt.port,
+        config.mqtt.host,
+        config.mqtt.port,
     )
     from .transports import mqtt
 
@@ -138,7 +139,7 @@ def _apply_pair_flag(config: Config, pair_code: str, config_path: Path) -> Confi
     if config.rest.device_token:
         log.warning(
             "--pair ignored: a device_token is already saved at %s. "
-            "Wipe it (set device_token = \"\" in [rest]) and re-run to re-pair.",
+            'Wipe it (set device_token = "" in [rest]) and re-run to re-pair.',
             config_path,
         )
         return config

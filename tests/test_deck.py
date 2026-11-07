@@ -3,6 +3,7 @@
 Manifest shapes here mirror what the server's app/deck_sync.py build_manifest
 actually emits, not a paraphrase of it.
 """
+
 from __future__ import annotations
 
 import json
@@ -111,9 +112,7 @@ def test_a_bad_link_is_dropped_not_fatal() -> None:
 
 def test_link_with_neither_button_nor_zone_is_dropped() -> None:
     body = json.loads(_manifest())
-    body["pages"][0]["links"] = [
-        {"button": None, "zone": None, "target_page_id": "next"}
-    ]
+    body["pages"][0]["links"] = [{"button": None, "zone": None, "target_page_id": "next"}]
     m = parse_manifest(json.dumps(body))
     assert m.page("home") is not None
     assert m.page("home").links == ()  # type: ignore[union-attr]
@@ -149,10 +148,16 @@ def test_first_matching_link_wins() -> None:
 def test_zone_hit_test_uses_the_pixel_centre() -> None:
     body = json.loads(_manifest())
     body["pages"][0]["links"] = [
-        {"button": None, "zone": {"x": 0.0, "y": 0.0, "w": 0.5, "h": 1.0},
-         "target_page_id": "prev"},
-        {"button": None, "zone": {"x": 0.5, "y": 0.0, "w": 0.5, "h": 1.0},
-         "target_page_id": "next"},
+        {
+            "button": None,
+            "zone": {"x": 0.0, "y": 0.0, "w": 0.5, "h": 1.0},
+            "target_page_id": "prev",
+        },
+        {
+            "button": None,
+            "zone": {"x": 0.5, "y": 0.0, "w": 0.5, "h": 1.0},
+            "target_page_id": "next",
+        },
     ]
     m = parse_manifest(json.dumps(body))
     # Panel 100 wide: pixel 49 centre = 0.495 -> left; pixel 50 = 0.505 -> right.
@@ -163,10 +168,16 @@ def test_zone_hit_test_uses_the_pixel_centre() -> None:
 def test_abutting_zones_never_both_claim_a_pixel() -> None:
     body = json.loads(_manifest())
     body["pages"][0]["links"] = [
-        {"button": None, "zone": {"x": 0.0, "y": 0.0, "w": 0.5, "h": 1.0},
-         "target_page_id": "prev"},
-        {"button": None, "zone": {"x": 0.5, "y": 0.0, "w": 0.5, "h": 1.0},
-         "target_page_id": "next"},
+        {
+            "button": None,
+            "zone": {"x": 0.0, "y": 0.0, "w": 0.5, "h": 1.0},
+            "target_page_id": "prev",
+        },
+        {
+            "button": None,
+            "zone": {"x": 0.5, "y": 0.0, "w": 0.5, "h": 1.0},
+            "target_page_id": "next",
+        },
     ]
     m = parse_manifest(json.dumps(body))
     hits = [nav_zone(m, "home", x, 0, 100, 100) for x in range(100)]
@@ -178,8 +189,11 @@ def test_abutting_zones_never_both_claim_a_pixel() -> None:
 def test_zone_miss_returns_none() -> None:
     body = json.loads(_manifest())
     body["pages"][0]["links"] = [
-        {"button": None, "zone": {"x": 0.0, "y": 0.0, "w": 0.25, "h": 0.25},
-         "target_page_id": "next"},
+        {
+            "button": None,
+            "zone": {"x": 0.0, "y": 0.0, "w": 0.25, "h": 0.25},
+            "target_page_id": "next",
+        },
     ]
     m = parse_manifest(json.dumps(body))
     assert nav_zone(m, "home", 90, 90, 100, 100) is None

@@ -26,7 +26,9 @@ from tesserae_pi_client.mqtt_loop import (
 )
 
 DEVICE_ID = "pi_png"
-FRAME_TOPIC = frame_topic(DEVICE_ID)
+FRAME_TOPIC = frame_topic(DEVICE_ID)  # the subscription: either format
+PNG_TOPIC = f"tesserae/{DEVICE_ID}/frame/png"
+BIN_TOPIC = f"tesserae/{DEVICE_ID}/frame/bin"
 STATUS_TOPIC = status_topic(DEVICE_ID)
 
 
@@ -64,9 +66,7 @@ class FakePublisher:
     def __init__(self) -> None:
         self.publishes: list[tuple[str, bytes, int, bool]] = []
 
-    def publish(
-        self, topic: str, payload: bytes, qos: int = 0, retain: bool = False
-    ) -> Any:
+    def publish(self, topic: str, payload: bytes, qos: int = 0, retain: bool = False) -> Any:
         self.publishes.append((topic, payload, qos, retain))
         return None
 
@@ -115,63 +115,33 @@ def test_parse_accepts_int_saturation() -> None:
     assert isinstance(req.saturation, float)
 
 
+def test_parse_defaults_hints_a_bin_announcement_leaves_out() -> None:
+    """A packed .bin carries no PNG hints; a PNG announcement names all four."""
+    req = parse_frame_payload(json.dumps({"url": "http://h/renders/abcdef12.bin"}).encode())
+    assert (req.rotate, req.scale, req.bg, req.saturation) == (0, "fit", "white", 0.5)
+    assert req.digest == "abcdef12"
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [("rotate", 4), ("scale", "huge"), ("bg", 3), ("saturation", 2.0)],
+)
+def test_parse_still_rejects_a_bad_hint_that_is_present(field: str, value: object) -> None:
+    body = {
+        "url": "http://h/renders/abc.png",
+        "rotate": 0,
+        "scale": "fit",
+        "bg": "white",
+        "saturation": 0.5,
+        field: value,
+    }
+    with pytest.raises(ValueError, match=field):
+        parse_frame_payload(json.dumps(body).encode())
+
+
 def test_parse_rejects_missing_url() -> None:
-    raw = json.dumps(
-        {"rotate": 0, "scale": "fit", "bg": "white", "saturation": 0.5}
-    ).encode()
+    raw = json.dumps({"rotate": 0, "scale": "fit", "bg": "white", "saturation": 0.5}).encode()
     with pytest.raises(ValueError, match="url"):
-        parse_frame_payload(raw)
-
-
-def test_parse_rejects_missing_rotate() -> None:
-    raw = json.dumps(
-        {
-            "url": "http://h/renders/abc.png",
-            "scale": "fit",
-            "bg": "white",
-            "saturation": 0.5,
-        }
-    ).encode()
-    with pytest.raises(ValueError, match="rotate"):
-        parse_frame_payload(raw)
-
-
-def test_parse_rejects_missing_scale() -> None:
-    raw = json.dumps(
-        {
-            "url": "http://h/renders/abc.png",
-            "rotate": 0,
-            "bg": "white",
-            "saturation": 0.5,
-        }
-    ).encode()
-    with pytest.raises(ValueError, match="scale"):
-        parse_frame_payload(raw)
-
-
-def test_parse_rejects_missing_bg() -> None:
-    raw = json.dumps(
-        {
-            "url": "http://h/renders/abc.png",
-            "rotate": 0,
-            "scale": "fit",
-            "saturation": 0.5,
-        }
-    ).encode()
-    with pytest.raises(ValueError, match="bg"):
-        parse_frame_payload(raw)
-
-
-def test_parse_rejects_missing_saturation() -> None:
-    raw = json.dumps(
-        {
-            "url": "http://h/renders/abc.png",
-            "rotate": 0,
-            "scale": "fit",
-            "bg": "white",
-        }
-    ).encode()
-    with pytest.raises(ValueError, match="saturation"):
         parse_frame_payload(raw)
 
 
@@ -271,14 +241,14 @@ def _handler_pair() -> tuple[MessageHandler, CapturingDispatcher, Status, FakePu
         dispatcher=dispatcher,
         status=status,
         heartbeat=heartbeat,
-        frame_topic=FRAME_TOPIC,
+        device_id=DEVICE_ID,
     )
     return handler, dispatcher, status, publisher
 
 
 def test_handler_dispatches_valid_payload() -> None:
     handler, dispatcher, status, _ = _handler_pair()
-    handler.handle(FRAME_TOPIC, _valid_payload())
+    handler.handle(PNG_TOPIC, _valid_payload())
     assert len(dispatcher.submitted) == 1
     req = dispatcher.submitted[0]
     assert req.scale == "fit"
@@ -289,7 +259,7 @@ def test_handler_dispatches_valid_payload() -> None:
 
 def test_handler_records_error_on_bad_payload() -> None:
     handler, dispatcher, status, _ = _handler_pair()
-    handler.handle(FRAME_TOPIC, b"not json")
+    handler.handle(PNG_TOPIC, b"not json")
     assert dispatcher.submitted == []
     assert status.state == "error"
     assert status.last_error is not None
@@ -306,7 +276,7 @@ def test_handler_ignores_unexpected_topic() -> None:
 def test_handler_publishes_no_paint_on_malformed_payload() -> None:
     """The contract: malformed payload must NOT cause a paint."""
     handler, dispatcher, _status, _ = _handler_pair()
-    handler.handle(FRAME_TOPIC, b'{"url": "not-a-url"}')
+    handler.handle(PNG_TOPIC, b'{"url": "not-a-url"}')
     assert dispatcher.submitted == []
 
 
@@ -518,9 +488,7 @@ class FakeMqttClient:
         self.on_disconnect: Any = None
         self.on_message: Any = None
 
-    def will_set(
-        self, topic: str, payload: bytes, qos: int = 0, retain: bool = False
-    ) -> Any:
+    def will_set(self, topic: str, payload: bytes, qos: int = 0, retain: bool = False) -> Any:
         self.will = (topic, payload, qos, retain)
 
     def username_pw_set(self, username: str, password: str | None = None) -> Any:
@@ -541,7 +509,7 @@ def test_make_mqtt_loop_sets_lwt_and_backoff() -> None:
         dispatcher=CapturingDispatcher(),
         status=status,
         heartbeat=heartbeat,
-        frame_topic=FRAME_TOPIC,
+        device_id=DEVICE_ID,
     )
     fake_client = FakeMqttClient("cid")
     client = make_mqtt_loop(
@@ -582,7 +550,7 @@ def test_make_mqtt_loop_passes_credentials_when_set() -> None:
         dispatcher=CapturingDispatcher(),
         status=status,
         heartbeat=heartbeat,
-        frame_topic=FRAME_TOPIC,
+        device_id=DEVICE_ID,
     )
     fake_client = FakeMqttClient("cid")
     make_mqtt_loop(
@@ -603,7 +571,7 @@ def test_make_mqtt_loop_omits_credentials_when_unset() -> None:
         dispatcher=CapturingDispatcher(),
         status=status,
         heartbeat=heartbeat,
-        frame_topic=FRAME_TOPIC,
+        device_id=DEVICE_ID,
     )
     fake_client = FakeMqttClient("cid")
     make_mqtt_loop(

@@ -5,6 +5,7 @@ its own module so main.py can dispatch on config.transport_mode. Behaviour
 is unchanged from the pre-REST-port codebase: same threads, same callbacks,
 same shutdown semantics.
 """
+
 from __future__ import annotations
 
 import logging
@@ -69,7 +70,7 @@ def run(
         dispatcher=dispatcher,
         status=status,
         heartbeat=heartbeat,
-        frame_topic=resolved_frame_topic,
+        device_id=config.mqtt.device_id,
     )
     client = make_mqtt_loop(
         config=config,

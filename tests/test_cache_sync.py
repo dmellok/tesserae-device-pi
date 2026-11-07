@@ -5,6 +5,7 @@ double-counted, and a chatty dashboard starving album playback.
 Frames here are real PNGs rather than the bin client's fixed-length buffers,
 because the third verification step on this client is an actual decode.
 """
+
 from __future__ import annotations
 
 import io
@@ -61,9 +62,7 @@ class FakeClient:
     def absolute(self, url: str) -> str:
         return url if url.startswith("http") else f"http://srv{url}"
 
-    def download_authed(
-        self, url: str, token: str, max_bytes: int, timeout_s: float
-    ) -> bytes:
+    def download_authed(self, url: str, token: str, max_bytes: int, timeout_s: float) -> bytes:
         self.downloads.append(url)
         digest = url.rsplit("/", 1)[-1]
         if digest not in self._blobs:
@@ -82,18 +81,14 @@ def _deck_body(**over: Any) -> str:
                 "digest": DA,
                 "bytes": len(FRAME_A),
                 "ttl_s": 3600,
-                "links": [
-                    {"button": "right", "zone": None, "target_page_id": "next"}
-                ],
+                "links": [{"button": "right", "zone": None, "target_page_id": "next"}],
             },
             {
                 "page_id": "next",
                 "digest": DB,
                 "bytes": len(FRAME_B),
                 "ttl_s": 3600,
-                "links": [
-                    {"button": "left", "zone": None, "target_page_id": "home"}
-                ],
+                "links": [{"button": "left", "zone": None, "target_page_id": "home"}],
             },
         ],
     }
@@ -110,22 +105,26 @@ def _album_body(**over: Any) -> str:
         "total_frames": 2,
         "frames": [
             {
-                "frame_id": "p0", "position": 0, "digest": DA,
-                "bytes": len(FRAME_A), "ttl_s": 86400, "cache": True,
+                "frame_id": "p0",
+                "position": 0,
+                "digest": DA,
+                "bytes": len(FRAME_A),
+                "ttl_s": 86400,
+                "cache": True,
                 "url": f"/api/v1/device/pi_png/collection/frame/{DA}",
             },
             {
-                "frame_id": "p1", "position": 1, "digest": DC,
-                "bytes": len(FRAME_C), "ttl_s": 86400, "cache": True,
+                "frame_id": "p1",
+                "position": 1,
+                "digest": DC,
+                "bytes": len(FRAME_C),
+                "ttl_s": 86400,
+                "cache": True,
                 "url": f"/api/v1/device/pi_png/collection/frame/{DC}",
             },
         ],
         "producer": {
-            "album": {
-                "playback": {
-                    "mode": "sequential", "interval_s": 600, "repeat": "loop"
-                }
-            }
+            "album": {"playback": {"mode": "sequential", "interval_s": 600, "repeat": "loop"}}
         },
     }
     body.update(over)
@@ -134,8 +133,12 @@ def _album_body(**over: Any) -> str:
 
 def _manager(tmp_path: Path, enabled: bool = True) -> CacheManager:
     return CacheManager(
-        tmp_path, "pi_png", max_frame_bytes=1_000_000,
-        download_timeout_s=5.0, panel_size=PANEL, enabled=enabled,
+        tmp_path,
+        "pi_png",
+        max_frame_bytes=1_000_000,
+        download_timeout_s=5.0,
+        panel_size=PANEL,
+        enabled=enabled,
     )
 
 
@@ -287,9 +290,7 @@ def test_unchanged_version_does_not_resync(tmp_path: Path) -> None:
 
 def test_album_plays_on_its_interval(tmp_path: Path) -> None:
     mgr = _manager(tmp_path)
-    client = FakeClient(
-        collection=(200, _album_body()), blobs={DA: FRAME_A, DC: FRAME_C}
-    )
+    client = FakeClient(collection=(200, _album_body()), blobs={DA: FRAME_A, DC: FRAME_C})
     mgr.sync_collection(client, "TOK")
 
     first = mgr.album_due(now=1000.0)
@@ -302,9 +303,7 @@ def test_album_plays_on_its_interval(tmp_path: Path) -> None:
 
 def test_album_frames_are_verified_and_decoded_before_use(tmp_path: Path) -> None:
     mgr = _manager(tmp_path)
-    client = FakeClient(
-        collection=(200, _album_body()), blobs={DA: FRAME_A, DC: FRAME_C}
-    )
+    client = FakeClient(collection=(200, _album_body()), blobs={DA: FRAME_A, DC: FRAME_C})
     mgr.sync_collection(client, "TOK")
     frame = mgr.album_due(now=1000.0)
     assert frame is not None
@@ -332,9 +331,7 @@ def test_network_frame_does_not_keep_postponing_the_album(tmp_path: Path) -> Non
     """A chatty dashboard would otherwise starve playback forever: each
     interrupt must resume at the EXISTING deadline, not a fresh interval."""
     mgr = _manager(tmp_path)
-    client = FakeClient(
-        collection=(200, _album_body()), blobs={DA: FRAME_A, DC: FRAME_C}
-    )
+    client = FakeClient(collection=(200, _album_body()), blobs={DA: FRAME_A, DC: FRAME_C})
     mgr.sync_collection(client, "TOK")
 
     mgr.album_due(now=1000.0)  # deadline is now 1600
@@ -347,9 +344,7 @@ def test_network_frame_does_not_keep_postponing_the_album(tmp_path: Path) -> Non
 
 def test_collection_report_is_truthful(tmp_path: Path) -> None:
     mgr = _manager(tmp_path)
-    client = FakeClient(
-        collection=(200, _album_body()), blobs={DA: FRAME_A, DC: FRAME_C}
-    )
+    client = FakeClient(collection=(200, _album_body()), blobs={DA: FRAME_A, DC: FRAME_C})
     mgr.sync_collection(client, "TOK")
 
     report = mgr.report()["collection"]
@@ -373,9 +368,7 @@ def test_partial_album_download_reports_the_real_cached_count(
 
 def test_collection_unbound_drops_playback(tmp_path: Path) -> None:
     mgr = _manager(tmp_path)
-    client = FakeClient(
-        collection=(200, _album_body()), blobs={DA: FRAME_A, DC: FRAME_C}
-    )
+    client = FakeClient(collection=(200, _album_body()), blobs={DA: FRAME_A, DC: FRAME_C})
     mgr.sync_collection(client, "TOK")
     mgr.note_status_response({})
     assert "collection" not in mgr.report()

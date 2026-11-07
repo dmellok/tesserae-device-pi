@@ -16,13 +16,14 @@ from typing import Any, Protocol
 from PIL import Image as PILImage
 from PIL.Image import Image
 
+from . import frame as frames
 from .config import Config
 from .heartbeat import (
     OFFLINE_WILL_PAYLOAD,
     Heartbeat,
     Status,
 )
-from .transforms import VALID_SCALES, apply_transforms
+from .transforms import VALID_SCALES
 
 log = logging.getLogger(__name__)
 
@@ -30,13 +31,25 @@ RECONNECT_BACKOFF_MIN_S = 1.0
 RECONNECT_BACKOFF_MAX_S = 60.0
 
 
-def frame_topic(device_id: str) -> str:
-    return f"tesserae/{device_id}/frame/png"
+#: Frame formats the server may publish to this device: ``bin`` for a Spectra 6
+#: Impression on the packed renderer, ``png`` for everything else.
+FRAME_FORMATS: frozenset[str] = frozenset({"bin", "png"})
 
-# The contract says "/renders/<64-hex-digest>.png" but we accept any
+
+def frame_topic(device_id: str) -> str:
+    """The subscription for this device's frames, either format."""
+    return f"tesserae/{device_id}/frame/+"
+
+
+def is_frame_topic(topic: str, device_id: str) -> bool:
+    prefix = f"tesserae/{device_id}/frame/"
+    return topic.startswith(prefix) and topic[len(prefix) :] in FRAME_FORMATS
+
+
+# The contract says "/renders/<64-hex-digest>.<ext>" but we accept any
 # reasonable hex suffix length — older Tesserae builds used 8-char prefixes
 # and we don't want to refuse those.
-_DIGEST_RE = re.compile(r"/renders/([0-9a-fA-F]{8,128})\.png$")
+_DIGEST_RE = re.compile(r"/renders/([0-9a-fA-F]{8,128})\.(?:png|bin)$")
 
 
 @dataclass(frozen=True)
@@ -48,9 +61,13 @@ class FrameRequest:
     bg: str
     saturation: float
 
+    @property
+    def hints(self) -> frames.Hints:
+        return frames.Hints(self.rotate, self.scale, self.bg, self.saturation)
+
 
 class PaintFn(Protocol):
-    def __call__(self, img: Image, saturation: float) -> None: ...
+    def __call__(self, frame: frames.Paintable, saturation: float) -> None: ...
 
 
 class Downloader(Protocol):
@@ -75,9 +92,7 @@ def _parse_scale(value: Any) -> str:
     if not isinstance(value, str):
         raise ValueError(f"scale must be str, got {type(value).__name__}")
     if value not in VALID_SCALES:
-        raise ValueError(
-            f"scale must be one of {sorted(VALID_SCALES)}, got {value!r}"
-        )
+        raise ValueError(f"scale must be one of {sorted(VALID_SCALES)}, got {value!r}")
     return value
 
 
@@ -102,11 +117,12 @@ def _parse_saturation(value: Any) -> float:
 def parse_frame_payload(raw: bytes) -> FrameRequest:
     """Parse the JSON announcement from the frame topic. Raises on bad input.
 
-    All five contract fields (url/rotate/scale/bg/saturation) are required
-    present per the spec — we do not apply our own defaults that would
-    override the server's choice. The single permissive corner is `bg`: any
-    string is accepted at parse time, and transforms applies a white
-    fallback for names the local palette table doesn't know.
+    ``url`` is required. The PNG transform hints (rotate / scale / bg /
+    saturation) are validated when present and neutral when absent: the
+    ``pi_png`` renderer always sends all four, while a packed ``.bin`` is
+    already in the panel's palette and orientation and carries none. The
+    single permissive corner is `bg`: any string is accepted at parse time,
+    and transforms applies a white fallback for names it doesn't know.
     """
     try:
         obj = json.loads(raw.decode("utf-8"))
@@ -124,10 +140,11 @@ def parse_frame_payload(raw: bytes) -> FrameRequest:
     if not parsed.netloc:
         raise ValueError("url missing host")
 
-    rotate = _parse_rotate(_require_field(obj, "rotate"))
-    scale = _parse_scale(_require_field(obj, "scale"))
-    bg = _parse_bg(_require_field(obj, "bg"))
-    saturation = _parse_saturation(_require_field(obj, "saturation"))
+    d = frames.NO_HINTS
+    rotate = _parse_rotate(obj["rotate"]) if "rotate" in obj else d.rotate
+    scale = _parse_scale(obj["scale"]) if "scale" in obj else d.scale
+    bg = _parse_bg(obj["bg"]) if "bg" in obj else d.bg
+    saturation = _parse_saturation(obj["saturation"]) if "saturation" in obj else d.saturation
 
     digest_match = _DIGEST_RE.search(parsed.path)
     digest = digest_match.group(1).lower() if digest_match else None
@@ -150,8 +167,7 @@ def http_download(url: str, timeout_s: float, max_bytes: int) -> bytes:
             try:
                 if int(declared) > max_bytes:
                     raise ValueError(
-                        f"server reports {declared} bytes; "
-                        f"exceeds max_frame_bytes={max_bytes}"
+                        f"server reports {declared} bytes; exceeds max_frame_bytes={max_bytes}"
                     )
             except ValueError:
                 raise
@@ -204,9 +220,7 @@ class FrameDispatcher:
     def start(self) -> None:
         if self._thread is not None:
             return
-        self._thread = threading.Thread(
-            target=self._loop, name="tesserae-paint", daemon=True
-        )
+        self._thread = threading.Thread(target=self._loop, name="tesserae-paint", daemon=True)
         self._thread.start()
 
     def stop(self) -> None:
@@ -258,15 +272,7 @@ class FrameDispatcher:
                 timeout_s=self._config.http.download_timeout_s,
                 max_bytes=self._config.http.max_frame_bytes,
             )
-            img = decode_png(raw)
-            transformed = apply_transforms(
-                img,
-                self._panel_size,
-                rotate=request.rotate,
-                scale=request.scale,
-                bg=request.bg,
-            )
-            self._paint(transformed, request.saturation)
+            self._paint(frames.load(raw, self._panel_size, request.hints), request.saturation)
         except (
             urllib.error.URLError,
             urllib.error.HTTPError,
@@ -297,9 +303,7 @@ class MqttClientLike(Protocol):
 
     def loop_stop(self) -> Any: ...
 
-    def publish(
-        self, topic: str, payload: bytes, qos: int = 0, retain: bool = False
-    ) -> Any: ...
+    def publish(self, topic: str, payload: bytes, qos: int = 0, retain: bool = False) -> Any: ...
 
     def subscribe(self, topic: str, qos: int = 0) -> Any: ...
 
@@ -307,9 +311,7 @@ class MqttClientLike(Protocol):
 
     def username_pw_set(self, username: str, password: str | None = None) -> Any: ...
 
-    def will_set(
-        self, topic: str, payload: bytes, qos: int = 0, retain: bool = False
-    ) -> Any: ...
+    def will_set(self, topic: str, payload: bytes, qos: int = 0, retain: bool = False) -> Any: ...
 
 
 class _SubmitDispatcher(Protocol):
@@ -327,15 +329,15 @@ class MessageHandler:
         dispatcher: _SubmitDispatcher,
         status: Status,
         heartbeat: Heartbeat,
-        frame_topic: str,
+        device_id: str,
     ) -> None:
         self._dispatcher = dispatcher
         self._status = status
         self._heartbeat = heartbeat
-        self._frame_topic = frame_topic
+        self._device_id = device_id
 
     def handle(self, topic: str, payload: bytes) -> None:
-        if topic != self._frame_topic:
+        if not is_frame_topic(topic, self._device_id):
             log.warning("ignored message on unexpected topic %r", topic)
             return
         try:
@@ -411,7 +413,9 @@ __all__ = [
     "MqttClientLike",
     "PaintFn",
     "decode_png",
+    "FRAME_FORMATS",
     "frame_topic",
+    "is_frame_topic",
     "http_download",
     "make_mqtt_loop",
     "parse_frame_payload",

@@ -15,6 +15,7 @@ sse.py) and a front-button press (buttons.py). Both merely wake the loop —
 the frame GET below stays the only path that paints from the network, so
 there is exactly one place where a server frame reaches the panel.
 """
+
 from __future__ import annotations
 
 import json
@@ -28,6 +29,7 @@ from typing import Any
 
 import requests
 
+from .. import frame as frames
 from ..battery import BatteryMonitor
 from ..battery import payload_for as battery_payload
 from ..button_report import ButtonReport, frame_status_acknowledges
@@ -36,9 +38,8 @@ from ..config import Config, RestConfig, save_config, with_rest_updates
 from ..environment import EnvironmentSensor
 from ..environment import payload_for as env_payload
 from ..heartbeat import Status, _wifi_rssi
-from ..mqtt_loop import PaintFn, decode_png, parse_frame_payload
+from ..mqtt_loop import PaintFn, parse_frame_payload
 from ..ota_report import OtaReporter
-from ..transforms import apply_transforms
 
 log = logging.getLogger(__name__)
 
@@ -244,16 +245,10 @@ class RestClient:
         """Manifest frame URLs are server-relative; make them absolute."""
         if url.startswith(("http://", "https://")):
             return url
-        base = (
-            self._base[: -len(API_PREFIX)]
-            if self._base.endswith(API_PREFIX)
-            else self._base
-        )
+        base = self._base[: -len(API_PREFIX)] if self._base.endswith(API_PREFIX) else self._base
         return base.rstrip("/") + "/" + url.lstrip("/")
 
-    def download_authed(
-        self, url: str, token: str, max_bytes: int, timeout_s: float
-    ) -> bytes:
+    def download_authed(self, url: str, token: str, max_bytes: int, timeout_s: float) -> bytes:
         """Like download(), but with Bearer auth — cached frames are served
         from authenticated routes, unlike the main frame's signed URL."""
         resp = self._session.get(
@@ -268,9 +263,7 @@ class RestClient:
 
     def download(self, url: str, max_bytes: int, timeout_s: float) -> bytes:
         """Same contract as mqtt_loop.http_download — refuses oversize bodies."""
-        resp = self._session.get(
-            url, timeout=timeout_s, allow_redirects=True, stream=True
-        )
+        resp = self._session.get(url, timeout=timeout_s, allow_redirects=True, stream=True)
         resp.raise_for_status()
         return _read_capped(resp, max_bytes)
 
@@ -287,8 +280,7 @@ def _read_capped(resp: requests.Response, max_bytes: int) -> bytes:
         try:
             if int(declared) > max_bytes:
                 raise ValueError(
-                    f"server reports {declared} bytes; "
-                    f"exceeds max_frame_bytes={max_bytes}"
+                    f"server reports {declared} bytes; exceeds max_frame_bytes={max_bytes}"
                 )
         except ValueError:
             raise
@@ -356,7 +348,9 @@ def _claim_via_discover(
         except (requests.ConnectionError, requests.Timeout) as exc:
             log.warning(
                 "discover failed (%s: %s); retrying in %ds",
-                type(exc).__name__, exc, TRANSIENT_FAILURE_BACKOFF_S,
+                type(exc).__name__,
+                exc,
+                TRANSIENT_FAILURE_BACKOFF_S,
             )
             shutdown.wait(TRANSIENT_FAILURE_BACKOFF_S)
             continue
@@ -364,7 +358,8 @@ def _claim_via_discover(
         if code >= 500 or body is None:
             log.warning(
                 "discover returned %d; retrying in %ds",
-                code, TRANSIENT_FAILURE_BACKOFF_S,
+                code,
+                TRANSIENT_FAILURE_BACKOFF_S,
             )
             shutdown.wait(TRANSIENT_FAILURE_BACKOFF_S)
             continue
@@ -372,9 +367,7 @@ def _claim_via_discover(
         if body.get("registered"):
             token = body.get("device_token")
             if not isinstance(token, str) or not token:
-                log.error(
-                    "discover registered=true but no device_token in body; retrying"
-                )
+                log.error("discover registered=true but no device_token in body; retrying")
                 shutdown.wait(TRANSIENT_FAILURE_BACKOFF_S)
                 continue
             # Adopt the server's canonical id — it may differ from what we
@@ -385,11 +378,10 @@ def _claim_via_discover(
             if canonical_id != cfg.mqtt.device_id:
                 log.info(
                     "adopting server-canonical device_id=%s (was %s)",
-                    canonical_id, cfg.mqtt.device_id,
+                    canonical_id,
+                    cfg.mqtt.device_id,
                 )
-                new_cfg = replace(
-                    new_cfg, mqtt=replace(new_cfg.mqtt, device_id=canonical_id)
-                )
+                new_cfg = replace(new_cfg, mqtt=replace(new_cfg.mqtt, device_id=canonical_id))
             save_config(new_cfg, config_path)
             _log_server_time(body.get("server_time"))
             log.info("registered via discover as device_id=%s", canonical_id)
@@ -399,8 +391,8 @@ def _claim_via_discover(
         if not isinstance(retry, int) or retry <= 0:
             retry = DISCOVER_DEFAULT_RETRY_S
         log.info(
-            "not registered yet — admin needs to click Register on the server "
-            "(retrying in %ds)", retry,
+            "not registered yet — admin needs to click Register on the server (retrying in %ds)",
+            retry,
         )
         shutdown.wait(retry)
     return None
@@ -422,13 +414,13 @@ def _claim_via_register(
     pairing_code = cfg.rest.pairing_code
     while not shutdown.is_set():
         try:
-            code, body, retry_after = client.register(
-                _device_info(cfg, status), pairing_code
-            )
+            code, body, retry_after = client.register(_device_info(cfg, status), pairing_code)
         except (requests.ConnectionError, requests.Timeout) as exc:
             log.warning(
                 "register failed (%s: %s); retrying in %ds",
-                type(exc).__name__, exc, TRANSIENT_FAILURE_BACKOFF_S,
+                type(exc).__name__,
+                exc,
+                TRANSIENT_FAILURE_BACKOFF_S,
             )
             shutdown.wait(TRANSIENT_FAILURE_BACKOFF_S)
             continue
@@ -441,40 +433,34 @@ def _claim_via_register(
             canonical_id = body.get("device_id") or cfg.mqtt.device_id
             new_cfg = with_rest_updates(cfg, device_token=token, pairing_code="")
             if canonical_id != cfg.mqtt.device_id:
-                new_cfg = replace(
-                    new_cfg, mqtt=replace(new_cfg.mqtt, device_id=canonical_id)
-                )
+                new_cfg = replace(new_cfg, mqtt=replace(new_cfg.mqtt, device_id=canonical_id))
             save_config(new_cfg, config_path)
             _log_server_time(body.get("server_time"))
             reused = body.get("reused_existing", False)
             log.info(
                 "registered via pairing code as device_id=%s (%s)",
-                canonical_id, "reused existing" if reused else "newly created",
+                canonical_id,
+                "reused existing" if reused else "newly created",
             )
             return new_cfg
 
         if code == 403:
-            log.error(
-                "register 403: pairing code invalid or expired — "
-                "generate a fresh one"
-            )
+            log.error("register 403: pairing code invalid or expired — generate a fresh one")
             raise SystemExit(2)
         if code == 400:
             log.error("register 400: bad body (body=%r)", body)
             raise SystemExit(2)
         if code == 429:
-            wait_s = (
-                retry_after
-                if retry_after is not None
-                else REGISTER_DEFAULT_RETRY_AFTER_S
-            )
+            wait_s = retry_after if retry_after is not None else REGISTER_DEFAULT_RETRY_AFTER_S
             wait_s = min(max(wait_s, 1), REGISTER_RETRY_AFTER_CAP_S)
             log.warning("register 429 rate-limited; honoring Retry-After=%ds", wait_s)
             shutdown.wait(wait_s)
             continue
         log.warning(
             "register: unexpected status %d (body=%r); retrying in %ds",
-            code, body, TRANSIENT_FAILURE_BACKOFF_S,
+            code,
+            body,
+            TRANSIENT_FAILURE_BACKOFF_S,
         )
         shutdown.wait(TRANSIENT_FAILURE_BACKOFF_S)
     return None
@@ -502,7 +488,8 @@ def _apply_status_response(
             if sis != cfg.rest.poll_interval_s:
                 log.info(
                     "server config push: poll_interval_s %d -> %d",
-                    cfg.rest.poll_interval_s, sis,
+                    cfg.rest.poll_interval_s,
+                    sis,
                 )
                 cfg = with_rest_updates(cfg, poll_interval_s=sis)
                 save_config(cfg, config_path)
@@ -548,9 +535,7 @@ class Telemetry:
 
         self._sensor: EnvironmentSensor | None = None
         if config.environment.sensor:
-            self._sensor = EnvironmentSensor(
-                config.environment.sensor, config.environment.i2c_bus
-            )
+            self._sensor = EnvironmentSensor(config.environment.sensor, config.environment.i2c_bus)
 
         self._battery: BatteryMonitor | None = None
         if config.battery.source:
@@ -586,17 +571,13 @@ def run(
     if not config.rest.device_token:
         if config.rest.pairing_code:
             log.info("no device_token — registering with pairing code")
-            updated = _claim_via_register(
-                client, config, status, shutdown, config_path
-            )
+            updated = _claim_via_register(client, config, status, shutdown, config_path)
         else:
             log.info(
                 "no device_token — entering discover loop "
                 "(admin must click Register on Settings -> Devices)"
             )
-            updated = _claim_via_discover(
-                client, config, status, shutdown, config_path
-            )
+            updated = _claim_via_discover(client, config, status, shutdown, config_path)
         if updated is None:
             # shutdown fired during claim
             return 0
@@ -650,7 +631,13 @@ def run(
     try:
         while not shutdown.is_set():
             config, next_poll, should_exit = _wake_cycle(
-                client, config, status, paint_fn, config_path, report, cache,
+                client,
+                config,
+                status,
+                paint_fn,
+                config_path,
+                report,
+                cache,
                 telemetry,
             )
             if should_exit:
@@ -671,9 +658,7 @@ def run(
     return 0
 
 
-def _sleep_until_wake(
-    shutdown: threading.Event, wake: threading.Event, seconds: int
-) -> bool:
+def _sleep_until_wake(shutdown: threading.Event, wake: threading.Event, seconds: int) -> bool:
     """Sleep, returning True only for shutdown.
 
     Waits on both events without burning a thread per waiter: a short poll is
@@ -756,9 +741,7 @@ def _wake_cycle(
     if cache is not None:
         # The locally-served-page report rides the same-cycle frame GET too,
         # so the server's nav state stays truthful even before the status POST.
-        params.update(
-            {k: str(v) for k, v in cache.report().items() if k.startswith("deck_")}
-        )
+        params.update({k: str(v) for k, v in cache.report().items() if k.startswith("deck_")})
     try:
         code, body, etag = client.get_frame(
             device_id,
@@ -769,7 +752,8 @@ def _wake_cycle(
     except (requests.ConnectionError, requests.Timeout) as exc:
         log.warning(
             "frame GET failed (%s: %s); sleeping fallback",
-            type(exc).__name__, exc,
+            type(exc).__name__,
+            exc,
         )
         # Not acknowledged — the press stays pending so /status delivers it.
         report.finish_frame(False)
@@ -782,16 +766,13 @@ def _wake_cycle(
     report.finish_frame(frame_status_acknowledges(code))
 
     if code == 401:
-        log.error(
-            "frame GET 401: token invalid — wiping device_token, re-pair to recover"
-        )
+        log.error("frame GET 401: token invalid — wiping device_token, re-pair to recover")
         config = with_rest_updates(config, device_token="")
         save_config(config, config_path)
         return config, 0, True
     if code == 403:
         log.error(
-            "frame GET 403: token not valid for this device (stale device_id?); "
-            "re-pair to recover"
+            "frame GET 403: token not valid for this device (stale device_id?); re-pair to recover"
         )
         return config, 0, True
     if code == 429:
@@ -831,15 +812,10 @@ def _wake_cycle(
                 max_bytes=config.http.max_frame_bytes,
                 timeout_s=float(config.http.download_timeout_s),
             )
-            img = decode_png(raw)
-            transformed = apply_transforms(
-                img,
-                (status.panel_w, status.panel_h),
-                rotate=request.rotate,
-                scale=request.scale,
-                bg=request.bg,
+            paint_fn(
+                frames.load(raw, (status.panel_w, status.panel_h), request.hints),
+                request.saturation,
             )
-            paint_fn(transformed, request.saturation)
         except (
             requests.ConnectionError,
             requests.Timeout,
@@ -906,10 +882,7 @@ def _wake_cycle(
     status.button_event_id = None
 
     if post_code == 401:
-        log.error(
-            "status POST 401: token invalid — wiping device_token, "
-            "re-pair to recover"
-        )
+        log.error("status POST 401: token invalid — wiping device_token, re-pair to recover")
         config = with_rest_updates(config, device_token="")
         save_config(config, config_path)
         return config, 0, True

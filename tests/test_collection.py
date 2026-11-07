@@ -2,6 +2,7 @@
 
 Manifest shapes mirror the server's app/collection_sync.py build_manifest.
 """
+
 from __future__ import annotations
 
 import json
@@ -44,9 +45,7 @@ def _manifest(n: int = 3, **over: Any) -> str:
             for i in range(n)
         ],
         "producer": {
-            "album": {
-                "playback": {"mode": "sequential", "interval_s": 1800, "repeat": "loop"}
-            }
+            "album": {"playback": {"mode": "sequential", "interval_s": 1800, "repeat": "loop"}}
         },
     }
     body.update(over)
@@ -111,8 +110,7 @@ def test_interval_is_clamped() -> None:
     rated refreshes, and e-ink takes seconds to update anyway."""
     m = parse_manifest(
         _manifest(
-            producer={"album": {"playback": {"mode": "shuffle", "interval_s": 1,
-                                             "repeat": "loop"}}}
+            producer={"album": {"playback": {"mode": "shuffle", "interval_s": 1, "repeat": "loop"}}}
         )
     )
     assert m.playback.interval_s == INTERVAL_MIN_S
@@ -123,8 +121,9 @@ def test_interval_is_clamped() -> None:
 def test_unknown_mode_and_repeat_fall_back_to_defaults() -> None:
     m = parse_manifest(
         _manifest(
-            producer={"album": {"playback": {"mode": "spiral", "interval_s": 600,
-                                             "repeat": "forever"}}}
+            producer={
+                "album": {"playback": {"mode": "spiral", "interval_s": 600, "repeat": "forever"}}
+            }
         )
     )
     assert m.playback.mode == "sequential"
@@ -153,8 +152,9 @@ def test_sequential_loop_cycles_in_position_order() -> None:
 def test_once_holds_after_the_last_frame() -> None:
     m = parse_manifest(
         _manifest(
-            producer={"album": {"playback": {"mode": "sequential",
-                                             "interval_s": 600, "repeat": "once"}}}
+            producer={
+                "album": {"playback": {"mode": "sequential", "interval_s": 600, "repeat": "once"}}
+            }
         )
     )
     player = AlbumPlayer(m)
@@ -168,8 +168,9 @@ def test_shuffle_covers_every_frame_before_repeating() -> None:
     a bug to anyone watching the frame."""
     m = parse_manifest(
         _manifest(
-            producer={"album": {"playback": {"mode": "shuffle",
-                                             "interval_s": 600, "repeat": "loop"}}}
+            producer={
+                "album": {"playback": {"mode": "shuffle", "interval_s": 600, "repeat": "loop"}}
+            }
         )
     )
     player = AlbumPlayer(m, rng=random.Random(7))

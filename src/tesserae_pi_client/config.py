@@ -152,8 +152,8 @@ def render_config_toml(
         "[buttons]\n"
         "# The Impression HATs carry four front buttons (A-D). Pin numbers are\n"
         "# BCM GPIO: A=5 B=6 D=24 on every Impression, but C is GPIO 16 on the\n"
-        "# 4\"/5.7\"/7.3\" and GPIO 25 on the 13.3\". pin_c = 0 means \"derive it\n"
-        "# from the panel inky.auto() detected\", which is what a fresh install\n"
+        '# 4"/5.7"/7.3" and GPIO 25 on the 13.3". pin_c = 0 means "derive it\n'
+        '# from the panel inky.auto() detected", which is what a fresh install\n'
         "# wants — this client has no configured panel model to read it from.\n"
         "# Actions are the server's vocabulary: refresh | left | right (left and\n"
         "# right map to rotate_prev / rotate_next). Empty = button unmapped.\n"
@@ -189,14 +189,14 @@ def render_config_toml(
         "[environment]\n"
         "# Optional ambient sensor on the HAT's existing I2C bus.\n"
         f"sensor = {_toml_str(env_sensor)}"
-        "             # \"\" | sht4x | shtc3\n"
+        '             # "" | sht4x | shtc3\n'
         f"i2c_bus = {env_i2c_bus}\n"
         "\n"
         "[battery]\n"
         "# Optional PiSugar UPS. pisugar3 reads the gauge over I2C directly;\n"
         "# pisugar-server asks PiSugar's power manager on 127.0.0.1:8423.\n"
         f"source = {_toml_str(battery_source)}"
-        "             # \"\" | pisugar3 | pisugar-server\n"
+        '             # "" | pisugar3 | pisugar-server\n'
         f"i2c_bus = {battery_i2c_bus}\n"
         "\n"
         "[http]\n"
@@ -239,6 +239,7 @@ class RestConfig:
     and last_frame_etag are written back by the daemon, pairing_code is
     single-use and wiped after a successful register. Only server_url and
     poll_interval_s are user-facing defaults."""
+
     server_url: str = ""
     device_token: str = ""
     pairing_code: str = ""
@@ -362,11 +363,7 @@ class ButtonsConfig:
             (self.pin_c, self.action_c),
             (self.pin_d, self.action_d),
         )
-        return {
-            pin: action
-            for pin, action in pairs
-            if action and pin != BUTTON_PIN_C_AUTO
-        }
+        return {pin: action for pin, action in pairs if action and pin != BUTTON_PIN_C_AUTO}
 
 
 @dataclass(frozen=True)
@@ -391,13 +388,9 @@ def _require(section: dict[str, Any], key: str, kind: type, where: str) -> Any:
     # bool is a subclass of int in Python, but a config file with `port = true`
     # is clearly bogus — reject it.
     if kind is int and isinstance(value, bool):
-        raise ValueError(
-            f"[{where}].{key} must be int, got bool"
-        )
+        raise ValueError(f"[{where}].{key} must be int, got bool")
     if not isinstance(value, kind):
-        raise ValueError(
-            f"[{where}].{key} must be {kind.__name__}, got {type(value).__name__}"
-        )
+        raise ValueError(f"[{where}].{key} must be {kind.__name__}, got {type(value).__name__}")
     return value
 
 
@@ -407,9 +400,7 @@ def _parse(raw: dict[str, Any]) -> Config:
         raise ValueError("[mqtt] must be a table")
     device_id = mqtt_section.get("device_id", DEFAULT_DEVICE_ID)
     if not isinstance(device_id, str):
-        raise ValueError(
-            f"[mqtt].device_id must be str, got {type(device_id).__name__}"
-        )
+        raise ValueError(f"[mqtt].device_id must be str, got {type(device_id).__name__}")
     if not _DEVICE_ID_RE.match(device_id):
         raise ValueError(
             f"[mqtt].device_id must match {_DEVICE_ID_RE.pattern!r} "
@@ -453,9 +444,7 @@ def _parse(raw: dict[str, Any]) -> Config:
     # preserves existing behaviour for configs predating the REST split.
     transport_mode = raw.get("transport_mode", "mqtt")
     if not isinstance(transport_mode, str):
-        raise ValueError(
-            f"transport_mode must be str, got {type(transport_mode).__name__}"
-        )
+        raise ValueError(f"transport_mode must be str, got {type(transport_mode).__name__}")
     if transport_mode not in TRANSPORT_MODES:
         raise ValueError(
             f"transport_mode unknown: {transport_mode!r} "
@@ -475,9 +464,7 @@ def _parse(raw: dict[str, Any]) -> Config:
         sse_enabled=rest_section.get("sse_enabled", True),
     )
     if not isinstance(rest.sse_enabled, bool):
-        raise ValueError(
-            f"[rest].sse_enabled must be bool, got {type(rest.sse_enabled).__name__}"
-        )
+        raise ValueError(f"[rest].sse_enabled must be bool, got {type(rest.sse_enabled).__name__}")
     for name, value in (
         ("server_url", rest.server_url),
         ("device_token", rest.device_token),
@@ -486,15 +473,13 @@ def _parse(raw: dict[str, Any]) -> Config:
         ("tz", rest.tz),
     ):
         if not isinstance(value, str):
-            raise ValueError(
-                f"[rest].{name} must be str, got {type(value).__name__}"
-            )
+            raise ValueError(f"[rest].{name} must be str, got {type(value).__name__}")
     if not isinstance(rest.poll_interval_s, int) or rest.poll_interval_s <= 0:
         raise ValueError("[rest].poll_interval_s must be a positive integer")
     if transport_mode == "rest" and not rest.server_url:
         raise ValueError(
             "[rest].server_url is required when transport_mode = 'rest' "
-            "(e.g. server_url = \"http://tesserae.local:8765\")"
+            '(e.g. server_url = "http://tesserae.local:8765")'
         )
 
     relay_section = raw.get("relay", {})
@@ -524,15 +509,11 @@ def _parse(raw: dict[str, Any]) -> Config:
         ("config_etag", relay.config_etag),
     ):
         if not isinstance(value, str):
-            raise ValueError(
-                f"[relay].{name} must be str, got {type(value).__name__}"
-            )
+            raise ValueError(f"[relay].{name} must be str, got {type(value).__name__}")
     if not isinstance(relay.poll_interval_s, int) or relay.poll_interval_s <= 0:
         raise ValueError("[relay].poll_interval_s must be a positive integer")
     if transport_mode == "relay" and not relay.relay_url:
-        raise ValueError(
-            "[relay].relay_url is required when transport_mode = 'relay'"
-        )
+        raise ValueError("[relay].relay_url is required when transport_mode = 'relay'")
     # "Paired or has a code to pair with" is deliberately NOT enforced here.
     # Dropping a revoked pairing legitimately produces a config with neither,
     # and that file must round-trip — a daemon that writes state it cannot
@@ -556,13 +537,9 @@ def _parse(raw: dict[str, Any]) -> Config:
         debounce_ms=buttons_section.get("debounce_ms", 50),
     )
     if not isinstance(buttons.enabled, bool):
-        raise ValueError(
-            f"[buttons].enabled must be bool, got {type(buttons.enabled).__name__}"
-        )
+        raise ValueError(f"[buttons].enabled must be bool, got {type(buttons.enabled).__name__}")
     if not isinstance(buttons.chip, str):
-        raise ValueError(
-            f"[buttons].chip must be str, got {type(buttons.chip).__name__}"
-        )
+        raise ValueError(f"[buttons].chip must be str, got {type(buttons.chip).__name__}")
     for name, pin in (
         ("pin_a", buttons.pin_a),
         ("pin_b", buttons.pin_b),
@@ -578,13 +555,11 @@ def _parse(raw: dict[str, Any]) -> Config:
         ("action_d", buttons.action_d),
     ):
         if not isinstance(action, str):
-            raise ValueError(
-                f"[buttons].{name} must be str, got {type(action).__name__}"
-            )
+            raise ValueError(f"[buttons].{name} must be str, got {type(action).__name__}")
         if action and action not in BUTTON_ACTIONS:
             raise ValueError(
                 f"[buttons].{name} unknown: {action!r} "
-                f"(expected one of {sorted(BUTTON_ACTIONS)}, or \"\" to unmap)"
+                f'(expected one of {sorted(BUTTON_ACTIONS)}, or "" to unmap)'
             )
     if (
         not isinstance(buttons.debounce_ms, int)
@@ -611,13 +586,9 @@ def _parse(raw: dict[str, Any]) -> Config:
         root=cache_section.get("root", ""),
     )
     if not isinstance(cache.enabled, bool):
-        raise ValueError(
-            f"[cache].enabled must be bool, got {type(cache.enabled).__name__}"
-        )
+        raise ValueError(f"[cache].enabled must be bool, got {type(cache.enabled).__name__}")
     if not isinstance(cache.root, str):
-        raise ValueError(
-            f"[cache].root must be str, got {type(cache.root).__name__}"
-        )
+        raise ValueError(f"[cache].root must be str, got {type(cache.root).__name__}")
 
     ota_section = raw.get("ota", {})
     if not isinstance(ota_section, dict):
@@ -625,8 +596,7 @@ def _parse(raw: dict[str, Any]) -> Config:
     ota = OtaConfig(report_enabled=ota_section.get("report_enabled", True))
     if not isinstance(ota.report_enabled, bool):
         raise ValueError(
-            f"[ota].report_enabled must be bool, "
-            f"got {type(ota.report_enabled).__name__}"
+            f"[ota].report_enabled must be bool, got {type(ota.report_enabled).__name__}"
         )
 
     env_section = raw.get("environment", {})
@@ -638,13 +608,12 @@ def _parse(raw: dict[str, Any]) -> Config:
     )
     if not isinstance(environment.sensor, str):
         raise ValueError(
-            f"[environment].sensor must be str, "
-            f"got {type(environment.sensor).__name__}"
+            f"[environment].sensor must be str, got {type(environment.sensor).__name__}"
         )
     if environment.sensor and environment.sensor not in ENV_SENSORS:
         raise ValueError(
             f"[environment].sensor unknown: {environment.sensor!r} "
-            f"(expected one of {sorted(ENV_SENSORS)}, or \"\" for none)"
+            f'(expected one of {sorted(ENV_SENSORS)}, or "" for none)'
         )
     if (
         not isinstance(environment.i2c_bus, int)
@@ -661,13 +630,11 @@ def _parse(raw: dict[str, Any]) -> Config:
         i2c_bus=battery_section.get("i2c_bus", 1),
     )
     if not isinstance(battery.source, str):
-        raise ValueError(
-            f"[battery].source must be str, got {type(battery.source).__name__}"
-        )
+        raise ValueError(f"[battery].source must be str, got {type(battery.source).__name__}")
     if battery.source and battery.source not in BATTERY_SOURCES:
         raise ValueError(
             f"[battery].source unknown: {battery.source!r} "
-            f"(expected one of {sorted(BATTERY_SOURCES)}, or \"\" for none)"
+            f'(expected one of {sorted(BATTERY_SOURCES)}, or "" for none)'
         )
     if (
         not isinstance(battery.i2c_bus, int)
@@ -771,9 +738,7 @@ def save_config(cfg: Config, path: Path = DEFAULT_CONFIG_PATH) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     # Write to a temp file in the same directory so the rename is atomic
     # within a single filesystem.
-    fd, tmp_name = tempfile.mkstemp(
-        prefix=path.name + ".", suffix=".tmp", dir=str(path.parent)
-    )
+    fd, tmp_name = tempfile.mkstemp(prefix=path.name + ".", suffix=".tmp", dir=str(path.parent))
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as f:
             f.write(body)

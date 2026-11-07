@@ -14,6 +14,7 @@ has neither constraint, so `MAX_FRAMES` here is a sanity bound rather than a
 hardware one — the server still decides what to mark cacheable via the
 capacity we advertise.
 """
+
 from __future__ import annotations
 
 import json
@@ -130,9 +131,7 @@ def parse_manifest(body: str | bytes) -> CollectionManifest:
     if not isinstance(raw_frames, list):
         raise CollectionParseError("collection manifest has no frames list")
     if len(raw_frames) > MAX_FRAMES:
-        raise CollectionParseError(
-            f"collection has {len(raw_frames)} frames; cap is {MAX_FRAMES}"
-        )
+        raise CollectionParseError(f"collection has {len(raw_frames)} frames; cap is {MAX_FRAMES}")
 
     frames: list[CollectionFrame] = []
     for item in raw_frames:
@@ -147,9 +146,7 @@ def parse_manifest(body: str | bytes) -> CollectionManifest:
             raise CollectionParseError("collection frame missing frame_id")
         if cache:
             if not isinstance(digest, str) or not digest_valid(digest):
-                raise CollectionParseError(
-                    f"frame {frame_id!r} has a bad digest: {digest!r}"
-                )
+                raise CollectionParseError(f"frame {frame_id!r} has a bad digest: {digest!r}")
             if not isinstance(size, int) or isinstance(size, bool) or size <= 0:
                 raise CollectionParseError(f"frame {frame_id!r} has bytes={size!r}")
         position = item.get("position")
@@ -184,9 +181,7 @@ def parse_manifest(body: str | bytes) -> CollectionManifest:
     )
 
 
-def sync_plan(
-    manifest: CollectionManifest, have: set[str]
-) -> tuple[list[str], list[str]]:
+def sync_plan(manifest: CollectionManifest, have: set[str]) -> tuple[list[str], list[str]]:
     """(digests to fetch, digests to delete) to make the cache match."""
     want = manifest.cacheable_digests()
     return sorted(want - have), sorted(have - want)

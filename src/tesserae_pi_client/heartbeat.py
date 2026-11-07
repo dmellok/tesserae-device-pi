@@ -82,9 +82,7 @@ def _primary_ip() -> str:
 
 
 class Publisher(Protocol):
-    def publish(
-        self, topic: str, payload: bytes, qos: int = 0, retain: bool = False
-    ) -> Any: ...
+    def publish(self, topic: str, payload: bytes, qos: int = 0, retain: bool = False) -> Any: ...
 
 
 @dataclass
@@ -172,9 +170,7 @@ class Heartbeat:
     def start(self) -> None:
         if self._thread is not None:
             return
-        self._thread = threading.Thread(
-            target=self._loop, name="tesserae-heartbeat", daemon=True
-        )
+        self._thread = threading.Thread(target=self._loop, name="tesserae-heartbeat", daemon=True)
         self._thread.start()
 
     def stop(self) -> None:
@@ -187,15 +183,11 @@ class Heartbeat:
 
     def publish_now(self) -> None:
         with self._lock:
-            self._publisher.publish(
-                self._topic, self._status.to_json(), qos=1, retain=True
-            )
+            self._publisher.publish(self._topic, self._status.to_json(), qos=1, retain=True)
 
     def publish_offline(self) -> None:
         with self._lock:
-            self._publisher.publish(
-                self._topic, OFFLINE_WILL_PAYLOAD, qos=1, retain=True
-            )
+            self._publisher.publish(self._topic, OFFLINE_WILL_PAYLOAD, qos=1, retain=True)
 
     def kick(self) -> None:
         self._kick_event.set()

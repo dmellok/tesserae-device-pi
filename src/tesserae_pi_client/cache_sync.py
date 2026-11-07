@@ -26,14 +26,13 @@ than raw bytes: a cache entry that cannot be turned into something paintable
 is a miss, and the caller falls back to the network exactly as it would for a
 digest mismatch.
 """
+
 from __future__ import annotations
 
 import logging
 import time
 from pathlib import Path
 from typing import Any, Protocol
-
-from PIL.Image import Image
 
 from .collection import (
     AlbumPlayer,
@@ -46,8 +45,8 @@ from .collection import sync_plan as collection_sync_plan
 from .deck import DeckManifest, DeckParseError, nav_button
 from .deck import parse_manifest as parse_deck
 from .deck import sync_plan as deck_sync_plan
+from .frame import FrameRejected, Paintable, load
 from .frame_cache import FrameCache, capacity_bytes
-from .png_frame import FrameRejected, decode_frame
 
 log = logging.getLogger(__name__)
 
@@ -59,17 +58,13 @@ class ManifestClient(Protocol):
 
     def get_deck_manifest(self, device_id: str, token: str) -> tuple[int, str]: ...
 
-    def get_collection_manifest(
-        self, device_id: str, token: str
-    ) -> tuple[int, str]: ...
+    def get_collection_manifest(self, device_id: str, token: str) -> tuple[int, str]: ...
 
     def deck_frame_url(self, device_id: str, digest: str) -> str: ...
 
     def absolute(self, url: str) -> str: ...
 
-    def download_authed(
-        self, url: str, token: str, max_bytes: int, timeout_s: float
-    ) -> bytes: ...
+    def download_authed(self, url: str, token: str, max_bytes: int, timeout_s: float) -> bytes: ...
 
 
 class CacheManager:
@@ -227,9 +222,7 @@ class CacheManager:
         try:
             manifest = parse_deck(body)
         except DeckParseError as exc:
-            log.warning(
-                "deck manifest rejected (%s); staying on the network path", exc
-            )
+            log.warning("deck manifest rejected (%s); staying on the network path", exc)
             return
 
         cache = FrameCache(self._root, "decks", manifest.deck_id)
@@ -256,8 +249,11 @@ class CacheManager:
             self._current_page_id = manifest.entry_page_id
         log.info(
             "deck synced: %s v%s (%d page(s), %d fetched, %d pruned)",
-            manifest.deck_id, manifest.version, len(manifest.pages),
-            fetched, len(orphan),
+            manifest.deck_id,
+            manifest.version,
+            len(manifest.pages),
+            fetched,
+            len(orphan),
         )
 
     def sync_collection(self, client: ManifestClient, token: str) -> None:
@@ -291,9 +287,7 @@ class CacheManager:
             frame = by_digest.get(digest)
             if frame is None or not frame.url:
                 continue
-            if self._fetch_into(
-                cache, client, client.absolute(frame.url), token, digest
-            ):
+            if self._fetch_into(cache, client, client.absolute(frame.url), token, digest):
                 fetched += 1
         for digest in orphan:
             cache.delete(digest)
@@ -309,8 +303,12 @@ class CacheManager:
         self._album_state = "playing"
         log.info(
             "collection synced: %s v%s (%d/%d cached, %d fetched, %d pruned)",
-            manifest.collection_id, manifest.version,
-            len(cache.have()), manifest.total_frames, fetched, len(orphan),
+            manifest.collection_id,
+            manifest.version,
+            len(cache.have()),
+            manifest.total_frames,
+            fetched,
+            len(orphan),
         )
 
     def _fetch_into(
@@ -322,9 +320,7 @@ class CacheManager:
         digest: str,
     ) -> bool:
         try:
-            data = client.download_authed(
-                url, token, self._max_frame_bytes, self._timeout
-            )
+            data = client.download_authed(url, token, self._max_frame_bytes, self._timeout)
         except Exception as exc:  # noqa: BLE001 - one bad frame is not fatal
             log.warning("cache fetch of %s failed (%s)", digest, exc)
             return False
@@ -336,7 +332,7 @@ class CacheManager:
 
     def _decoded(
         self, cache: FrameCache, digest: str, expected_bytes: int, what: str
-    ) -> Image | None:
+    ) -> Paintable | None:
         """Digest + manifest-length verified bytes, decoded, or None.
 
         The decode is the third check, standing in for the bin client's
@@ -348,14 +344,14 @@ class CacheManager:
         if data is None:
             return None
         try:
-            return decode_frame(data, self._panel_size)
+            return load(data, self._panel_size)
         except FrameRejected as exc:
             log.warning("%s %s is unusable (%s); falling back", what, digest, exc)
             return None
 
     # -- local serving ----------------------------------------------------
 
-    def local_nav(self, button: str) -> Image | None:
+    def local_nav(self, button: str) -> Paintable | None:
         """Serve a button press from the deck cache, or None to go to network.
 
         Returning an image here means the press was resolved entirely
@@ -395,13 +391,11 @@ class CacheManager:
         self._album_deadline = now + self._collection.playback.interval_s
         return frame
 
-    def album_frame_image(self, frame: CollectionFrame) -> Image | None:
+    def album_frame_image(self, frame: CollectionFrame) -> Paintable | None:
         """The decoded, verified image for an album frame, or None."""
         if self._collection_cache is None:
             return None
-        return self._decoded(
-            self._collection_cache, frame.digest, frame.bytes, "album frame"
-        )
+        return self._decoded(self._collection_cache, frame.digest, frame.bytes, "album frame")
 
     def note_network_frame(self, now: float | None = None) -> None:
         """A one-off network frame just painted over the album.

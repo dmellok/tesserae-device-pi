@@ -2,6 +2,7 @@
 rules ported from the sibling firmware's button_report.c. Pure logic: no
 GPIO, no HTTP.
 """
+
 from __future__ import annotations
 
 from tesserae_pi_client.button_report import (
@@ -69,7 +70,7 @@ def test_unacknowledged_frame_retains_the_press_for_status() -> None:
 
 
 def test_304_counts_as_an_acknowledgement() -> None:
-    """"Nothing changed" still proves the request arrived and the action ran."""
+    """ "Nothing changed" still proves the request arrived and the action ran."""
     assert frame_status_acknowledges(304) is True
     report = ButtonReport(seed=1)
     report.set("refresh")

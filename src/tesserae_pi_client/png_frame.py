@@ -33,6 +33,7 @@ The normal REST/MQTT frame path does NOT come through here: it carries the
 server's rotate/scale/bg hints, and `transforms.apply_transforms` is the
 authority on turning an arbitrary image into a panel-sized one.
 """
+
 from __future__ import annotations
 
 import io
@@ -64,8 +65,7 @@ def decode_frame(raw: bytes, panel_size: tuple[int, int] | None = None) -> Image
         raise FrameRejected("frame is empty")
     if not looks_like_png(raw):
         raise FrameRejected(
-            f"frame does not start with the PNG signature "
-            f"(first bytes: {raw[:8]!r})"
+            f"frame does not start with the PNG signature (first bytes: {raw[:8]!r})"
         )
     try:
         img = PILImage.open(io.BytesIO(raw))

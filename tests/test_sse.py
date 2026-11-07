@@ -2,6 +2,7 @@
 purpose: an event split mid-line across two TCP reads is the case that breaks
 naive line splitting, and it happens in the field.
 """
+
 from __future__ import annotations
 
 import threading
@@ -24,9 +25,7 @@ def test_parses_a_simple_event() -> None:
 
 
 def test_event_split_across_chunks_mid_line() -> None:
-    assert _events("event: sy", "nc\ndata: {", '"seq":1}\n', "\n") == [
-        ("sync", '{"seq":1}')
-    ]
+    assert _events("event: sy", "nc\ndata: {", '"seq":1}\n', "\n") == [("sync", '{"seq":1}')]
 
 
 def test_multiple_events_in_one_chunk() -> None:
@@ -37,9 +36,7 @@ def test_multiple_events_in_one_chunk() -> None:
 
 
 def test_multiline_data_joins_with_newlines() -> None:
-    assert _events("event: sync\ndata: one\ndata: two\n\n") == [
-        ("sync", "one\ntwo")
-    ]
+    assert _events("event: sync\ndata: one\ndata: two\n\n") == [("sync", "one\ntwo")]
 
 
 def test_keepalive_comment_does_not_emit_an_event() -> None:

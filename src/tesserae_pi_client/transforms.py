@@ -63,9 +63,7 @@ def apply_rotate(img: Image, rotate: int) -> Image:
     return img.rotate(-90 * rotate, expand=True)
 
 
-def _fit(
-    img: Image, panel_w: int, panel_h: int, bg: tuple[int, int, int]
-) -> Image:
+def _fit(img: Image, panel_w: int, panel_h: int, bg: tuple[int, int, int]) -> Image:
     img_w, img_h = img.size
     factor = min(panel_w / img_w, panel_h / img_h)
     # floor so the scaled image always fits *inside* the panel; any sub-pixel
@@ -95,9 +93,7 @@ def _stretch(img: Image, panel_w: int, panel_h: int) -> Image:
     return img.resize((panel_w, panel_h), Resampling.LANCZOS)
 
 
-def _center(
-    img: Image, panel_w: int, panel_h: int, bg: tuple[int, int, int]
-) -> Image:
+def _center(img: Image, panel_w: int, panel_h: int, bg: tuple[int, int, int]) -> Image:
     img_w, img_h = img.size
     canvas = new_image("RGB", (panel_w, panel_h), bg)
     # PIL.paste handles negative offsets by clipping — so if the source is
@@ -115,9 +111,7 @@ def apply_scale(
 ) -> Image:
     """Dispatch to the right scale implementation based on `scale` mode."""
     if scale not in VALID_SCALES:
-        raise ValueError(
-            f"scale must be one of {sorted(VALID_SCALES)}, got {scale!r}"
-        )
+        raise ValueError(f"scale must be one of {sorted(VALID_SCALES)}, got {scale!r}")
     panel_w, panel_h = panel
     if panel_w <= 0 or panel_h <= 0:
         raise ValueError(f"panel size must be positive, got {panel}")

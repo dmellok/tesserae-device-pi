@@ -17,6 +17,7 @@ Parse strictness is deliberate and asymmetric:
 * A malformed **link** is dropped individually. One bad edge should not cost
   you the entire deck's local navigation.
 """
+
 from __future__ import annotations
 
 import json
@@ -150,9 +151,7 @@ def parse_manifest(body: str | bytes) -> DeckManifest:
         if not isinstance(page_id, str) or not page_id:
             raise DeckParseError("deck page missing page_id")
         if not isinstance(digest, str) or not digest_valid(digest):
-            raise DeckParseError(
-                f"deck page {page_id!r} has a bad digest: {digest!r}"
-            )
+            raise DeckParseError(f"deck page {page_id!r} has a bad digest: {digest!r}")
         if not isinstance(size, int) or isinstance(size, bool) or size <= 0:
             raise DeckParseError(f"deck page {page_id!r} has bytes={size!r}")
         ttl = item.get("ttl_s", 0)
@@ -233,9 +232,7 @@ def nav_zone(
     return None
 
 
-def sync_plan(
-    manifest: DeckManifest, have: set[str]
-) -> tuple[list[str], list[str]]:
+def sync_plan(manifest: DeckManifest, have: set[str]) -> tuple[list[str], list[str]]:
     """(digests to fetch, digests to delete) to make the cache match.
 
     Deleting is driven by the *cacheable* set, so a page the server demoted to

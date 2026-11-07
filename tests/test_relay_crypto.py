@@ -6,6 +6,7 @@ only field symptom is that frames silently never appear. The vectors come from
 docs/relay/contract.md ("Golden vectors"), generated from fixed private
 scalars home_priv = 0x01*32, panel_priv = 0x02*32.
 """
+
 from __future__ import annotations
 
 import pytest
@@ -24,15 +25,9 @@ from tesserae_pi_client.relay_crypto import (
 HOME_PRIV = bytes([0x01]) * 32
 PANEL_PRIV = bytes([0x02]) * 32
 
-HOME_PUB = bytes.fromhex(
-    "a4e09292b651c278b9772c569f5fa9bb13d906b46ab68c9df9dc2b4409f8a209"
-)
-PANEL_PUB = bytes.fromhex(
-    "ce8d3ad1ccb633ec7b70c17814a5c76ecd029685050d344745ba05870e587d59"
-)
-FRAME_KEY = bytes.fromhex(
-    "613376ae6bc97931b6d33c17aaf561fb2ff2e2f12937249705e1e5b75dd98e83"
-)
+HOME_PUB = bytes.fromhex("a4e09292b651c278b9772c569f5fa9bb13d906b46ab68c9df9dc2b4409f8a209")
+PANEL_PUB = bytes.fromhex("ce8d3ad1ccb633ec7b70c17814a5c76ecd029685050d344745ba05870e587d59")
+FRAME_KEY = bytes.fromhex("613376ae6bc97931b6d33c17aaf561fb2ff2e2f12937249705e1e5b75dd98e83")
 NONCE = bytes.fromhex("00112233445566778899aabb")
 FRAME = bytes.fromhex("74657373657261652d6672616d652d0001027061796c6f6164")
 SEALED = bytes.fromhex(
@@ -55,9 +50,7 @@ def test_frame_key_matches_the_contract() -> None:
 
 def test_derivation_is_symmetric() -> None:
     """This is what lets the key never travel."""
-    assert derive_frame_key(HOME_PRIV, PANEL_PUB) == derive_frame_key(
-        PANEL_PRIV, HOME_PUB
-    )
+    assert derive_frame_key(HOME_PRIV, PANEL_PUB) == derive_frame_key(PANEL_PRIV, HOME_PUB)
 
 
 def test_seal_matches_the_contract_vector() -> None:
@@ -136,6 +129,4 @@ def test_b64url_decode_rejects_garbage() -> None:
 def test_generated_keys_are_distinct_and_usable() -> None:
     a, b = generate_private_key(), generate_private_key()
     assert a != b
-    assert derive_frame_key(a, public_key_for(b)) == derive_frame_key(
-        b, public_key_for(a)
-    )
+    assert derive_frame_key(a, public_key_for(b)) == derive_frame_key(b, public_key_for(a))

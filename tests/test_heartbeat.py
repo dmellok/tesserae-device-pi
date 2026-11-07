@@ -22,9 +22,7 @@ class FakePublisher:
     def __init__(self) -> None:
         self.publishes: list[tuple[str, bytes, int, bool]] = []
 
-    def publish(
-        self, topic: str, payload: bytes, qos: int = 0, retain: bool = False
-    ) -> Any:
+    def publish(self, topic: str, payload: bytes, qos: int = 0, retain: bool = False) -> Any:
         self.publishes.append((topic, payload, qos, retain))
         return None
 

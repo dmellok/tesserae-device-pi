@@ -19,6 +19,7 @@ happily while never agreeing with home.
 
 Keys are raw 32-byte X25519, base64url without padding on the wire.
 """
+
 from __future__ import annotations
 
 import base64
@@ -68,9 +69,7 @@ def generate_private_key() -> bytes:
 def public_key_for(private_raw: bytes) -> bytes:
     """Derive the raw 32-byte public key for a raw private scalar."""
     if len(private_raw) != KEY_LEN:
-        raise RelayCryptoError(
-            f"private key must be {KEY_LEN} bytes, got {len(private_raw)}"
-        )
+        raise RelayCryptoError(f"private key must be {KEY_LEN} bytes, got {len(private_raw)}")
     private = X25519PrivateKey.from_private_bytes(private_raw)
     return private.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw)
 
@@ -82,13 +81,9 @@ def derive_frame_key(private_raw: bytes, their_public_raw: bytes) -> bytes:
     derive(home_priv, panel_pub), which is what lets the key never travel.
     """
     if len(private_raw) != KEY_LEN:
-        raise RelayCryptoError(
-            f"private key must be {KEY_LEN} bytes, got {len(private_raw)}"
-        )
+        raise RelayCryptoError(f"private key must be {KEY_LEN} bytes, got {len(private_raw)}")
     if len(their_public_raw) != KEY_LEN:
-        raise RelayCryptoError(
-            f"public key must be {KEY_LEN} bytes, got {len(their_public_raw)}"
-        )
+        raise RelayCryptoError(f"public key must be {KEY_LEN} bytes, got {len(their_public_raw)}")
     private = X25519PrivateKey.from_private_bytes(private_raw)
     public = X25519PublicKey.from_public_bytes(their_public_raw)
     shared = private.exchange(public)
@@ -126,8 +121,7 @@ def unseal(sealed: bytes, key: bytes) -> bytes:
         raise RelayCryptoError(f"key must be {KEY_LEN} bytes, got {len(key)}")
     if len(sealed) < NONCE_LEN + TAG_LEN:
         raise RelayCryptoError(
-            f"sealed payload is {len(sealed)} bytes; "
-            f"minimum is {NONCE_LEN + TAG_LEN} (nonce + tag)"
+            f"sealed payload is {len(sealed)} bytes; minimum is {NONCE_LEN + TAG_LEN} (nonce + tag)"
         )
     nonce, body = sealed[:NONCE_LEN], sealed[NONCE_LEN:]
     try:

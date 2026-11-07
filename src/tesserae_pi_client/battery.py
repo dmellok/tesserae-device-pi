@@ -27,6 +27,7 @@ Off by default and read best-effort, exactly like the environment sensor: a
 failed or implausible read omits the fields rather than interrupting the
 heartbeat, and the server's tile falls back to "Mains".
 """
+
 from __future__ import annotations
 
 import logging
@@ -78,9 +79,7 @@ def _decode_pisugar3(power_status: int, v_high: int, v_low: int, pct: int) -> Re
     mv = ((v_high & 0xFF) << 8) | (v_low & 0xFF)
     pct = pct & 0xFF
     if not (_MV_MIN <= mv <= _MV_MAX) or pct > 100:
-        log.warning(
-            "battery: implausible PiSugar 3 read (%d mV, %d %%); discarding", mv, pct
-        )
+        log.warning("battery: implausible PiSugar 3 read (%d mV, %d %%); discarding", mv, pct)
         return None
     return Reading(
         pct=pct,
@@ -106,9 +105,7 @@ def _decode_server(replies: dict[str, str]) -> Reading | None:
     except (KeyError, ValueError):
         return None
     if not (_MV_MIN <= mv <= _MV_MAX) or not (0 <= pct <= 100):
-        log.warning(
-            "battery: implausible pisugar-server read (%d mV, %d %%); discarding", mv, pct
-        )
+        log.warning("battery: implausible pisugar-server read (%d mV, %d %%); discarding", mv, pct)
         return None
     plugged: bool | None = None
     raw_plugged = replies.get("battery_power_plugged")
@@ -146,7 +143,9 @@ class BatteryMonitor:
             log.log(
                 level,
                 "battery: %s read failed (%s: %s); omitting the fields",
-                self._source, type(exc).__name__, exc,
+                self._source,
+                type(exc).__name__,
+                exc,
             )
             return None
         if reading is not None and self._failing:

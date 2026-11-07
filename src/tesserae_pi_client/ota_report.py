@@ -24,6 +24,7 @@ This module reports; it does not update. Deciding to install, and installing,
 is the operator's business (apt, pip, git, a systemd timer) — this just gives
 whatever does it a place to record what happened.
 """
+
 from __future__ import annotations
 
 import json
@@ -56,12 +57,20 @@ TERMINAL_PHASES = {"confirmed", "rejected", "failed", "rolled_back"}
 REASONS = {
     "ok",
     # rejected
-    "bad_signature", "malformed_descriptor", "malformed_manifest",
-    "schema_version", "kind_mismatch", "already_current",
-    "battery_low", "battery_unknown",
+    "bad_signature",
+    "malformed_descriptor",
+    "malformed_manifest",
+    "schema_version",
+    "kind_mismatch",
+    "already_current",
+    "battery_low",
+    "battery_unknown",
     # failed
-    "download_error", "size_mismatch", "digest_mismatch",
-    "image_invalid", "flash_error",
+    "download_error",
+    "size_mismatch",
+    "digest_mismatch",
+    "image_invalid",
+    "flash_error",
     # rolled_back
     "boot_failed",
 }
@@ -159,13 +168,12 @@ class OtaReporter:
             return
         if self._state.target_fw and running_fw == self._state.target_fw:
             log.info("ota: update to %s confirmed", running_fw)
-            self.set(
-                "confirmed", "ok", self._state.target_fw, self._state.attempt_id
-            )
+            self.set("confirmed", "ok", self._state.target_fw, self._state.attempt_id)
         else:
             log.warning(
                 "ota: expected %s after update but running %s; reporting rolled_back",
-                self._state.target_fw or "?", running_fw,
+                self._state.target_fw or "?",
+                running_fw,
             )
             self.set(
                 "rolled_back",

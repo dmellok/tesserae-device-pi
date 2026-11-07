@@ -2,6 +2,7 @@
 returns plausible-looking garbage, and a wrong temperature is much harder to
 notice than a missing one.
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -91,9 +92,7 @@ def test_unknown_sensor_reads_nothing() -> None:
 
 def test_successful_read_returns_a_reading(monkeypatch: Any) -> None:
     sensor = EnvironmentSensor("sht4x")
-    monkeypatch.setattr(
-        EnvironmentSensor, "_read_sht4x", lambda self: _framed(0x8000, 0x8000)
-    )
+    monkeypatch.setattr(EnvironmentSensor, "_read_sht4x", lambda self: _framed(0x8000, 0x8000))
     reading = sensor.read()
     assert reading is not None
     assert reading.sensor == "sht4x"

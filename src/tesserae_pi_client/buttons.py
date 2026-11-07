@@ -19,6 +19,7 @@ cleanly on a dev machine so the pure logic stays testable off-hardware.
 Presses feed a ButtonReport, whose delivery discipline (frame-GET dispatch,
 status-POST fallback, exactly-once) lives in button_report.py.
 """
+
 from __future__ import annotations
 
 import logging
@@ -92,21 +93,16 @@ class ButtonWatcher:
             self._request = self._open_lines(sorted(pin_actions))
         except Exception as exc:  # noqa: BLE001 - never fatal, see class docstring
             log.warning(
-                "buttons: could not open GPIO lines (%s: %s); "
-                "front buttons disabled for this run",
+                "buttons: could not open GPIO lines (%s: %s); front buttons disabled for this run",
                 type(exc).__name__,
                 exc,
             )
             return False
-        self._thread = threading.Thread(
-            target=self._loop, name="tesserae-buttons", daemon=True
-        )
+        self._thread = threading.Thread(target=self._loop, name="tesserae-buttons", daemon=True)
         self._thread.start()
         log.info(
             "buttons armed: %s",
-            ", ".join(
-                f"GPIO{pin}->{action}" for pin, action in sorted(pin_actions.items())
-            ),
+            ", ".join(f"GPIO{pin}->{action}" for pin, action in sorted(pin_actions.items())),
         )
         return True
 

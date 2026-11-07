@@ -2,6 +2,7 @@
 short-circuit, status POST config-merge, and the per-status-code error paths
 against a hand-rolled FakeSession (avoids pulling in `responses`/`requests-mock`).
 """
+
 from __future__ import annotations
 
 import io
@@ -181,8 +182,13 @@ def _config(
 ) -> Config:
     return Config(
         mqtt=MqttConfig(
-            host="h", port=1883, username="", password="",
-            client_id="cid", keepalive=60, device_id=device_id,
+            host="h",
+            port=1883,
+            username="",
+            password="",
+            client_id="cid",
+            keepalive=60,
+            device_id=device_id,
         ),
         http=HttpConfig(download_timeout_s=5, max_frame_bytes=10_000_000),
         logging=LoggingConfig(level="INFO"),
@@ -265,15 +271,19 @@ def test_discover_not_registered_then_registered_claims_token(tmp_path: Path) ->
 
     session = FakeSession()
     session.queue(
-        "POST", f"{BASE}/device/discover",
+        "POST",
+        f"{BASE}/device/discover",
         FakeResponse(200, {"status": "ok", "registered": False, "retry_after_s": 0}),
-        FakeResponse(200, {
-            "status": "ok",
-            "registered": True,
-            "device_token": "TOK_FROM_DISCOVER",
-            "device_id": "pi_png",
-            "server_time": 1781941884.34,
-        }),
+        FakeResponse(
+            200,
+            {
+                "status": "ok",
+                "registered": True,
+                "device_token": "TOK_FROM_DISCOVER",
+                "device_id": "pi_png",
+                "server_time": 1781941884.34,
+            },
+        ),
     )
     client = RestClient(SERVER_URL, session=session)  # type: ignore[arg-type]
 
@@ -297,13 +307,17 @@ def test_discover_adopts_server_canonical_device_id(tmp_path: Path) -> None:
 
     session = FakeSession()
     session.queue(
-        "POST", f"{BASE}/device/discover",
-        FakeResponse(200, {
-            "status": "ok",
-            "registered": True,
-            "device_token": "TOK",
-            "device_id": "pi_png_renamed",
-        }),
+        "POST",
+        f"{BASE}/device/discover",
+        FakeResponse(
+            200,
+            {
+                "status": "ok",
+                "registered": True,
+                "device_token": "TOK",
+                "device_id": "pi_png_renamed",
+            },
+        ),
     )
     client = RestClient(SERVER_URL, session=session)  # type: ignore[arg-type]
 
@@ -321,7 +335,8 @@ def test_discover_retries_on_connection_error(tmp_path: Path) -> None:
 
     session = FakeSession()
     session.queue(
-        "POST", f"{BASE}/device/discover",
+        "POST",
+        f"{BASE}/device/discover",
         _RaiseOnCall(requests.ConnectionError("refused")),
         FakeResponse(200, {"registered": True, "device_token": "TOK", "device_id": "pi_png"}),
     )
@@ -341,7 +356,8 @@ def test_discover_shutdown_stops_loop(tmp_path: Path) -> None:
     # Queue infinite not-registered responses; shutdown stops it.
     for _ in range(20):
         session.queue(
-            "POST", f"{BASE}/device/discover",
+            "POST",
+            f"{BASE}/device/discover",
             FakeResponse(200, {"registered": False, "retry_after_s": 0}),
         )
     client = RestClient(SERVER_URL, session=session)  # type: ignore[arg-type]
@@ -361,13 +377,17 @@ def test_register_201_saves_token_and_wipes_pairing_code(tmp_path: Path) -> None
 
     session = FakeSession()
     session.queue(
-        "POST", f"{BASE}/device/register",
-        FakeResponse(201, {
-            "status": "ok",
-            "device_token": "PAIRED_TOK",
-            "device_id": "pi_png",
-            "reused_existing": False,
-        }),
+        "POST",
+        f"{BASE}/device/register",
+        FakeResponse(
+            201,
+            {
+                "status": "ok",
+                "device_token": "PAIRED_TOK",
+                "device_id": "pi_png",
+                "reused_existing": False,
+            },
+        ),
     )
     client = RestClient(SERVER_URL, session=session)  # type: ignore[arg-type]
 
@@ -402,7 +422,8 @@ def test_register_429_honors_retry_after(tmp_path: Path) -> None:
     save_config(cfg, cfg_path)
     session = FakeSession()
     session.queue(
-        "POST", f"{BASE}/device/register",
+        "POST",
+        f"{BASE}/device/register",
         FakeResponse(429, None, headers={"Retry-After": "7"}),
         FakeResponse(201, {"device_token": "TOK", "device_id": "pi_png"}),
     )
@@ -429,6 +450,7 @@ def test_wake_cycle_304_skips_paint_and_keeps_etag(tmp_path: Path) -> None:
     client = RestClient(SERVER_URL, session=session)  # type: ignore[arg-type]
 
     paints: list[tuple[Image, float]] = []
+
     def paint_fn(img: Image, saturation: float) -> None:
         paints.append((img, saturation))
 
@@ -451,9 +473,11 @@ def test_wake_cycle_200_paints_and_persists_new_etag(tmp_path: Path) -> None:
     png = _png_bytes(32, 32)
     session = FakeSession()
     session.queue(
-        "GET", f"{BASE}/device/pi_png/frame",
+        "GET",
+        f"{BASE}/device/pi_png/frame",
         FakeResponse(
-            200, _frame_body(url=frame_url, saturation=0.7),
+            200,
+            _frame_body(url=frame_url, saturation=0.7),
             headers={"ETag": '"newetag"'},
         ),
     )
@@ -462,6 +486,7 @@ def test_wake_cycle_200_paints_and_persists_new_etag(tmp_path: Path) -> None:
     client = RestClient(SERVER_URL, session=session)  # type: ignore[arg-type]
 
     paints: list[tuple[Image, float]] = []
+
     def paint_fn(img: Image, saturation: float) -> None:
         paints.append((img, saturation))
 
@@ -506,9 +531,7 @@ def test_wake_cycle_401_wipes_token_and_exits(tmp_path: Path) -> None:
     session = FakeSession()
     session.queue("GET", f"{BASE}/device/pi_png/frame", FakeResponse(401))
     client = RestClient(SERVER_URL, session=session)  # type: ignore[arg-type]
-    new_cfg, _next, should_exit = _wake_cycle(
-        client, cfg, _status(), lambda i, s: None, cfg_path
-    )
+    new_cfg, _next, should_exit = _wake_cycle(client, cfg, _status(), lambda i, s: None, cfg_path)
     assert should_exit
     assert new_cfg.rest.device_token == ""
     persisted = parse_toml(cfg_path.read_text())
@@ -525,9 +548,7 @@ def test_wake_cycle_403_exits_without_wiping_token(tmp_path: Path) -> None:
     session = FakeSession()
     session.queue("GET", f"{BASE}/device/pi_png/frame", FakeResponse(403))
     client = RestClient(SERVER_URL, session=session)  # type: ignore[arg-type]
-    _new_cfg, _next, should_exit = _wake_cycle(
-        client, cfg, _status(), lambda i, s: None, cfg_path
-    )
+    _new_cfg, _next, should_exit = _wake_cycle(client, cfg, _status(), lambda i, s: None, cfg_path)
     assert should_exit
 
 
@@ -551,7 +572,8 @@ def test_wake_cycle_timeout_falls_back_to_poll_interval(tmp_path: Path) -> None:
     save_config(cfg, cfg_path)
     session = FakeSession()
     session.queue(
-        "GET", f"{BASE}/device/pi_png/frame",
+        "GET",
+        f"{BASE}/device/pi_png/frame",
         _RaiseOnCall(requests.Timeout("read timed out")),
     )
     client = RestClient(SERVER_URL, session=session)  # type: ignore[arg-type]
@@ -596,9 +618,7 @@ def test_apply_status_response_ignores_out_of_range_sleep_interval(tmp_path: Pat
     cfg = _config(poll_interval_s=60)
     cfg_path = tmp_path / "config.toml"
     save_config(cfg, cfg_path)
-    new_cfg, _next = _apply_status_response(
-        cfg, {"config": {"sleep_interval_s": 1}}, cfg_path
-    )
+    new_cfg, _next = _apply_status_response(cfg, {"config": {"sleep_interval_s": 1}}, cfg_path)
     assert new_cfg.rest.poll_interval_s == 60
 
 
@@ -607,8 +627,15 @@ def test_apply_status_response_ignores_out_of_range_sleep_interval(tmp_path: Pat
 
 def test_run_aborts_without_server_url(tmp_path: Path) -> None:
     cfg = Config(
-        mqtt=MqttConfig(host="h", port=1883, username="", password="",
-                        client_id="cid", keepalive=60, device_id="pi_png"),
+        mqtt=MqttConfig(
+            host="h",
+            port=1883,
+            username="",
+            password="",
+            client_id="cid",
+            keepalive=60,
+            device_id="pi_png",
+        ),
         http=HttpConfig(download_timeout_s=5, max_frame_bytes=10_000_000),
         logging=LoggingConfig(level="INFO"),
         transport_mode="rest",
@@ -725,9 +752,7 @@ def test_frame_429_honours_retry_after(tmp_path: Path) -> None:
     )
     client = RestClient(SERVER_URL, session=session)  # type: ignore[arg-type]
 
-    _cfg, next_poll, should_exit = _wake_cycle(
-        client, cfg, _status(), _paint_noop, cfg_path
-    )
+    _cfg, next_poll, should_exit = _wake_cycle(client, cfg, _status(), _paint_noop, cfg_path)
     assert not should_exit
     assert next_poll == 300
 
@@ -741,9 +766,7 @@ def test_frame_429_without_header_uses_poll_interval(tmp_path: Path) -> None:
     session.queue("GET", f"{BASE}/device/pi_png/frame", FakeResponse(429))
     client = RestClient(SERVER_URL, session=session)  # type: ignore[arg-type]
 
-    _cfg, next_poll, _exit = _wake_cycle(
-        client, cfg, _status(), _paint_noop, cfg_path
-    )
+    _cfg, next_poll, _exit = _wake_cycle(client, cfg, _status(), _paint_noop, cfg_path)
     assert next_poll == 90
 
 
@@ -761,9 +784,7 @@ def test_frame_429_retry_after_is_clamped(tmp_path: Path) -> None:
     )
     client = RestClient(SERVER_URL, session=session)  # type: ignore[arg-type]
 
-    _cfg, next_poll, _exit = _wake_cycle(
-        client, cfg, _status(), _paint_noop, cfg_path
-    )
+    _cfg, next_poll, _exit = _wake_cycle(client, cfg, _status(), _paint_noop, cfg_path)
     assert next_poll == rest.POLL_INTERVAL_MIN_S
 
 
@@ -781,9 +802,7 @@ def test_status_429_honours_retry_after(tmp_path: Path) -> None:
     )
     client = RestClient(SERVER_URL, session=session)  # type: ignore[arg-type]
 
-    _cfg, next_poll, should_exit = _wake_cycle(
-        client, cfg, _status(), _paint_noop, cfg_path
-    )
+    _cfg, next_poll, should_exit = _wake_cycle(client, cfg, _status(), _paint_noop, cfg_path)
     assert not should_exit
     assert next_poll == 240
 
@@ -862,8 +881,12 @@ def test_disabled_cache_advertises_nothing_through_the_cycle(tmp_path: Path) -> 
     save_config(cfg, cfg_path)
 
     cache = CacheManager(
-        tmp_path / "cache", "pi_png", max_frame_bytes=1000,
-        download_timeout_s=1.0, panel_size=(600, 448), enabled=False,
+        tmp_path / "cache",
+        "pi_png",
+        max_frame_bytes=1000,
+        download_timeout_s=1.0,
+        panel_size=(600, 448),
+        enabled=False,
     )
 
     session = FakeSession()
@@ -871,9 +894,7 @@ def test_disabled_cache_advertises_nothing_through_the_cycle(tmp_path: Path) -> 
     session.queue("POST", f"{BASE}/device/pi_png/status", FakeResponse(200, {}))
     client = RestClient(SERVER_URL, session=session)  # type: ignore[arg-type]
 
-    _wake_cycle(
-        client, cfg, _status(), _paint_noop, cfg_path, ButtonReport(seed=1), cache
-    )
+    _wake_cycle(client, cfg, _status(), _paint_noop, cfg_path, ButtonReport(seed=1), cache)
 
     body = json.loads(session.calls[1]["data"])
     assert "deck_cache" not in body
@@ -888,8 +909,12 @@ def test_enabled_cache_advertises_both_capabilities(tmp_path: Path) -> None:
     save_config(cfg, cfg_path)
 
     cache = CacheManager(
-        tmp_path / "cache", "pi_png", max_frame_bytes=1000,
-        download_timeout_s=1.0, panel_size=(600, 448), enabled=True,
+        tmp_path / "cache",
+        "pi_png",
+        max_frame_bytes=1000,
+        download_timeout_s=1.0,
+        panel_size=(600, 448),
+        enabled=True,
     )
 
     session = FakeSession()
@@ -897,9 +922,7 @@ def test_enabled_cache_advertises_both_capabilities(tmp_path: Path) -> None:
     session.queue("POST", f"{BASE}/device/pi_png/status", FakeResponse(200, {}))
     client = RestClient(SERVER_URL, session=session)  # type: ignore[arg-type]
 
-    _wake_cycle(
-        client, cfg, _status(), _paint_noop, cfg_path, ButtonReport(seed=1), cache
-    )
+    _wake_cycle(client, cfg, _status(), _paint_noop, cfg_path, ButtonReport(seed=1), cache)
 
     body = json.loads(session.calls[1]["data"])
     assert body["deck_cache"]["schema"] == 1
@@ -921,8 +944,14 @@ def test_ota_capability_rides_the_status_body(tmp_path: Path) -> None:
     client = RestClient(SERVER_URL, session=session)  # type: ignore[arg-type]
 
     _wake_cycle(
-        client, cfg, _status(), _paint_noop, cfg_path,
-        ButtonReport(seed=1), None, telemetry,
+        client,
+        cfg,
+        _status(),
+        _paint_noop,
+        cfg_path,
+        ButtonReport(seed=1),
+        None,
+        telemetry,
     )
 
     body = json.loads(session.calls[1]["data"])
@@ -951,32 +980,35 @@ def test_locally_served_press_is_not_reported_as_a_button_action(
 
     home, nxt = _png(1), _png(2)
     d_home, d_next = digest_of(home), digest_of(nxt)
-    manifest = json.dumps({
-        "deck_id": "deck1",
-        "version": "v1",
-        "entry_page_id": "home",
-        "pages": [
-            {
-                "page_id": "home", "digest": d_home, "bytes": len(home),
-                "ttl_s": 0,
-                "links": [
-                    {"button": "right", "zone": None, "target_page_id": "next"}
-                ],
-            },
-            {
-                "page_id": "next", "digest": d_next, "bytes": len(nxt),
-                "ttl_s": 0, "links": [],
-            },
-        ],
-    })
+    manifest = json.dumps(
+        {
+            "deck_id": "deck1",
+            "version": "v1",
+            "entry_page_id": "home",
+            "pages": [
+                {
+                    "page_id": "home",
+                    "digest": d_home,
+                    "bytes": len(home),
+                    "ttl_s": 0,
+                    "links": [{"button": "right", "zone": None, "target_page_id": "next"}],
+                },
+                {
+                    "page_id": "next",
+                    "digest": d_next,
+                    "bytes": len(nxt),
+                    "ttl_s": 0,
+                    "links": [],
+                },
+            ],
+        }
+    )
 
     class _DeckClient:
         def get_deck_manifest(self, device_id: str, token: str) -> tuple[int, str]:
             return 200, manifest
 
-        def get_collection_manifest(
-            self, device_id: str, token: str
-        ) -> tuple[int, str]:
+        def get_collection_manifest(self, device_id: str, token: str) -> tuple[int, str]:
             return 204, ""
 
         def deck_frame_url(self, device_id: str, digest: str) -> str:
@@ -985,14 +1017,16 @@ def test_locally_served_press_is_not_reported_as_a_button_action(
         def absolute(self, url: str) -> str:
             return url
 
-        def download_authed(
-            self, url: str, token: str, max_bytes: int, timeout_s: float
-        ) -> bytes:
+        def download_authed(self, url: str, token: str, max_bytes: int, timeout_s: float) -> bytes:
             return {d_home: home, d_next: nxt}[url.rsplit("/", 1)[-1]]
 
     cache = CacheManager(
-        tmp_path / "cache", "pi_png", max_frame_bytes=10_000_000,
-        download_timeout_s=1.0, panel_size=(600, 448), enabled=True,
+        tmp_path / "cache",
+        "pi_png",
+        max_frame_bytes=10_000_000,
+        download_timeout_s=1.0,
+        panel_size=(600, 448),
+        enabled=True,
     )
     cache.sync_deck(_DeckClient(), "TOK")
 
@@ -1009,8 +1043,13 @@ def test_locally_served_press_is_not_reported_as_a_button_action(
     report.set("right")
     painted: list[Image] = []
     _wake_cycle(
-        client, cfg, _status(), lambda img, sat: painted.append(img),
-        cfg_path, report, cache,
+        client,
+        cfg,
+        _status(),
+        lambda img, sat: painted.append(img),
+        cfg_path,
+        report,
+        cache,
     )
 
     assert len(painted) == 1  # served from disk

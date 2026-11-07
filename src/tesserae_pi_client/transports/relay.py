@@ -18,6 +18,7 @@ span as many cycles as home needs.
 Wire contract: docs/relay/contract.md in the Tesserae repo, authoritative for
 home, Worker and client alike.
 """
+
 from __future__ import annotations
 
 import json
@@ -31,9 +32,9 @@ import requests
 
 from ..button_report import ButtonReport
 from ..config import Config, save_config, with_relay_updates
+from ..frame import FrameRejected, load
 from ..heartbeat import Status, _wifi_rssi
 from ..mqtt_loop import PaintFn
-from ..png_frame import FrameRejected, decode_frame
 from ..relay_crypto import (
     RelayCryptoError,
     b64url_decode,
@@ -89,9 +90,7 @@ class RelayClient:
             headers["Authorization"] = f"Bearer {token}"
         return headers
 
-    def submit_pairing(
-        self, body: dict[str, Any]
-    ) -> tuple[int, dict[str, Any] | None]:
+    def submit_pairing(self, body: dict[str, Any]) -> tuple[int, dict[str, Any] | None]:
         resp = self._session.post(
             f"{self._base}/v1/pair",
             data=json.dumps(body),
@@ -195,14 +194,14 @@ def _pair(
             except (requests.ConnectionError, requests.Timeout) as exc:
                 log.warning(
                     "relay pair submit failed (%s: %s); retrying in %ds",
-                    type(exc).__name__, exc, TRANSIENT_FAILURE_BACKOFF_S,
+                    type(exc).__name__,
+                    exc,
+                    TRANSIENT_FAILURE_BACKOFF_S,
                 )
                 shutdown.wait(TRANSIENT_FAILURE_BACKOFF_S)
                 continue
             if code in (200, 202):
-                config = with_relay_updates(
-                    config, private_key=b64url_encode(private_raw)
-                )
+                config = with_relay_updates(config, private_key=b64url_encode(private_raw))
                 save_config(config, config_path)
                 log.info("relay: pairing submitted; waiting for home to complete it")
                 break
@@ -221,7 +220,9 @@ def _pair(
                 return None
             log.warning(
                 "relay pair: unexpected status %d (body=%r); retrying in %ds",
-                code, resp, TRANSIENT_FAILURE_BACKOFF_S,
+                code,
+                resp,
+                TRANSIENT_FAILURE_BACKOFF_S,
             )
             shutdown.wait(TRANSIENT_FAILURE_BACKOFF_S)
         if shutdown.is_set():
@@ -235,7 +236,9 @@ def _pair(
         except (requests.ConnectionError, requests.Timeout) as exc:
             log.warning(
                 "relay pair poll failed (%s: %s); retrying in %ds",
-                type(exc).__name__, exc, TRANSIENT_FAILURE_BACKOFF_S,
+                type(exc).__name__,
+                exc,
+                TRANSIENT_FAILURE_BACKOFF_S,
             )
             shutdown.wait(TRANSIENT_FAILURE_BACKOFF_S)
             continue
@@ -249,9 +252,7 @@ def _pair(
             save_config(config, config_path)
             return None
         if code != 200 or resp is None:
-            log.warning(
-                "relay pair poll returned %d; retrying in %ds", code, PAIR_RETRY_S
-            )
+            log.warning("relay pair poll returned %d; retrying in %ds", code, PAIR_RETRY_S)
             shutdown.wait(PAIR_RETRY_S)
             continue
 
@@ -276,8 +277,8 @@ def _pair(
         device_token = str(resp.get("device_token", ""))
         if not (install_id and device_id and device_token):
             log.error(
-                "relay pairing ready but missing install_id/device_id/token "
-                "(body=%r)", resp,
+                "relay pairing ready but missing install_id/device_id/token (body=%r)",
+                resp,
             )
             return None
 
@@ -295,22 +296,19 @@ def _pair(
         )
         save_config(config, config_path)
         log.info(
-            "relay paired: install=%s device=%s (frame key derived locally; "
-            "it never travelled)", install_id, device_id,
+            "relay paired: install=%s device=%s (frame key derived locally; it never travelled)",
+            install_id,
+            device_id,
         )
         # Home ships the initial device config in the pairing response, so a
         # panel starts on the operator's cadence rather than the default and
         # only later discovers it from the config mailbox.
-        config, _interval = _apply_relay_config(
-            resp.get("config"), config, config_path
-        )
+        config, _interval = _apply_relay_config(resp.get("config"), config, config_path)
         return config
     return None
 
 
-def _apply_relay_config(
-    doc: Any, config: Config, config_path: Path
-) -> tuple[Config, int | None]:
+def _apply_relay_config(doc: Any, config: Config, config_path: Path) -> tuple[Config, int | None]:
     """Apply a config document (pairing-time or from the config mailbox).
 
     Same shape as a REST /status response's `config` block. Returns the
@@ -323,7 +321,8 @@ def _apply_relay_config(
         if interval != config.relay.poll_interval_s:
             log.info(
                 "relay config: poll_interval_s %d -> %d",
-                config.relay.poll_interval_s, interval,
+                config.relay.poll_interval_s,
+                interval,
             )
             config = with_relay_updates(config, poll_interval_s=interval)
             save_config(config, config_path)
@@ -391,9 +390,7 @@ def run(
     return 0
 
 
-def _sleep_until_wake(
-    shutdown: threading.Event, wake: threading.Event, seconds: int
-) -> bool:
+def _sleep_until_wake(shutdown: threading.Event, wake: threading.Event, seconds: int) -> bool:
     """Sleep, returning True only for shutdown. A button press cuts it short."""
     deadline = time.monotonic() + seconds
     while True:
@@ -497,7 +494,7 @@ def _wake_cycle(
         # — and, like it, deliberately does not consult the relay's plaintext
         # X-Tesserae-Panel-* headers, which the relay could have altered.
         try:
-            img = decode_frame(frame, (status.panel_w, status.panel_h))
+            img = load(frame, (status.panel_w, status.panel_h))
         except FrameRejected as exc:
             log.error("relay frame rejected: %s", exc)
             status.state = "error"
@@ -534,9 +531,7 @@ def _wake_cycle(
     status.next_sleep_s = config.relay.poll_interval_s
 
     try:
-        post_code, post_body = client.post_status(
-            install_id, device_id, token, status.payload()
-        )
+        post_code, post_body = client.post_status(install_id, device_id, token, status.payload())
     except (requests.ConnectionError, requests.Timeout) as exc:
         log.warning("relay status POST failed (%s: %s)", type(exc).__name__, exc)
         return config, config.relay.poll_interval_s, False
@@ -549,9 +544,7 @@ def _wake_cycle(
     if isinstance(post_body, dict):
         remote_etag = post_body.get("config_etag")
         if isinstance(remote_etag, str) and remote_etag != config.relay.config_etag:
-            config, pushed = _pull_config(
-                client, config, config_path, frame_key, remote_etag
-            )
+            config, pushed = _pull_config(client, config, config_path, frame_key, remote_etag)
             if pushed is not None:
                 next_poll = pushed
 

@@ -14,6 +14,7 @@ Deliberately *not* reported here: the Pi's own CPU temperature. The server's
 field means ambient room temperature, and a SoC running 30 °C above the room
 would quietly poison anything plotted from it.
 """
+
 from __future__ import annotations
 
 import logging
@@ -100,7 +101,9 @@ class EnvironmentSensor:
             self._failed = True
             log.warning(
                 "environment: %s read failed (%s: %s); omitting the fields",
-                self._sensor, type(exc).__name__, exc,
+                self._sensor,
+                type(exc).__name__,
+                exc,
             )
             return None
         decoded = _decode(raw)

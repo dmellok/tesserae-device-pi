@@ -1,14 +1,20 @@
-"""inky high-level wrapper.
+"""inky wrapper: paints either kind of frame (see :mod:`frame`).
 
-Unlike the bin client (which writes 4-bpp packed bytes straight into inky's
-internal buffer), this client hands a PIL image to `inky.set_image()` and
-lets the library's palette-projection + dithering code do the quantise.
+* An image (a PNG frame) goes through `inky.set_image()`, which does the
+  palette projection and dithering on the Pi. Slower, but works on every
+  panel inky supports (pHAT, wHAT, Impression 4/5.7/7.3/13.3).
+* A packed 4-bpp buffer (a ``.bin`` frame, already quantised and packed by
+  the server for a Spectra 6 Impression) skips that: it is unpacked into the
+  (rows, cols) array of palette indices `inky.show()` paints from and
+  assigned to `panel.buf`. `show()` still runs, so each driver keeps its own
+  orientation transform and controller split (the 13.3" driver rotates the
+  buffer and splits it across its two controllers; the smaller ones don't),
+  which is why there is no lower-level "push bytes" call here.
 
-That means:
-  - We pay a PIL roundtrip and a per-frame quantise — slower than the bin path
-  - We work with any panel inky supports (pHAT, wHAT, Impression 4/5.7/7.3/13.3)
-  - We're not coupled to private inky internals, so the `inky` pin can be a
-    range (>=2.0,<3) instead of an exact version
+`panel.buf` is not a documented inky API. When a driver has none, a packed
+frame is expanded to an RGB image in the Spectra 6 palette and painted the
+slow way instead, so an inky release that renames it costs speed, not a
+blank panel. That is what lets `inky` be a range (>=2.0,<3), not a pin.
 
 `inky` is imported lazily inside `auto_panel()` so:
   - The pure transform tests don't need inky installed
@@ -22,9 +28,12 @@ import inspect
 import logging
 from typing import Any, Protocol
 
+import numpy as np
 from PIL import ImageDraw
-from PIL.Image import Image
+from PIL.Image import Image, fromarray
 from PIL.Image import new as new_image
+
+from .frame import PackedFrame, Paintable
 
 log = logging.getLogger(__name__)
 
@@ -105,7 +114,55 @@ def model_name(panel: Any) -> str:
     return f"inky_{w}x{h}"
 
 
-def paint(panel: Any, img: Image, saturation: float) -> None:
+# Spectra 6 palette by nibble value, for painting a packed frame on a driver
+# with no `buf` to write. Index 4 is unused by the panel; white stands in.
+SPECTRA6_RGB: list[tuple[int, int, int]] = [
+    (0, 0, 0),  # 0 black
+    (255, 255, 255),  # 1 white
+    (255, 255, 0),  # 2 yellow
+    (255, 0, 0),  # 3 red
+    (255, 255, 255),  # 4 (unused)
+    (0, 0, 255),  # 5 blue
+    (0, 255, 0),  # 6 green
+]
+
+
+def unpack_to_buf(packed: bytes, width: int, height: int) -> np.ndarray:
+    """A packed 4-bpp buffer as the (rows, cols) uint8 array inky paints from.
+
+    High nibble = even column (x = 0, 2, 4 ...), low nibble = odd column; one
+    byte per pixel out, holding the palette index.
+    """
+    flat = np.frombuffer(packed, dtype=np.uint8)
+    if width % 2 or flat.size != width * height // 2:
+        raise ValueError(f"packed length {flat.size} does not match {width}x{height}")
+    buf = np.empty((height, width), dtype=np.uint8)
+    buf[:, 0::2] = (flat >> 4).reshape(height, width // 2)
+    buf[:, 1::2] = (flat & 0x0F).reshape(height, width // 2)
+    return buf
+
+
+def packed_to_image(frame: PackedFrame) -> Image:
+    """A packed frame as an RGB image in the Spectra 6 palette."""
+    indices = unpack_to_buf(frame.data, frame.width, frame.height)
+    palette = np.array(SPECTRA6_RGB + [(255, 255, 255)] * (16 - len(SPECTRA6_RGB)), np.uint8)
+    return fromarray(palette[indices], "RGB")
+
+
+def paint(panel: Any, frame: Paintable, saturation: float) -> None:
+    """Paint one frame: a packed buffer the fast way when the driver allows
+    it, otherwise through inky's quantise (see the module docstring)."""
+    if isinstance(frame, PackedFrame):
+        if hasattr(panel, "buf"):
+            panel.buf = unpack_to_buf(frame.data, frame.width, frame.height)
+            panel.show()
+            return
+        log.warning("this inky driver has no buf; painting the packed frame via set_image")
+        frame = packed_to_image(frame)
+    paint_image(panel, frame, saturation)
+
+
+def paint_image(panel: Any, img: Image, saturation: float) -> None:
     """Push a fully-transformed RGB image through inky's quantise + SPI path.
 
     The image must already be panel-sized and in RGB mode. Transform pipeline
@@ -153,9 +210,13 @@ def stripe_test_image(width: int, height: int) -> Image:
 __all__ = [
     "STRIPE_COLORS",
     "Panel",
+    "SPECTRA6_RGB",
     "auto_panel",
     "model_name",
+    "packed_to_image",
     "paint",
+    "paint_image",
+    "unpack_to_buf",
     "panel_resolution",
     "stripe_test_image",
 ]

@@ -19,6 +19,7 @@ The stream is an OPTIMISATION, never a correctness requirement — polling
 carries the same information. Every failure path here degrades to "keep
 polling" rather than raising.
 """
+
 from __future__ import annotations
 
 import logging
@@ -139,9 +140,7 @@ class SseListener:
     def start(self) -> None:
         if self._thread is not None:
             return
-        self._thread = threading.Thread(
-            target=self._loop, name="tesserae-sse", daemon=True
-        )
+        self._thread = threading.Thread(target=self._loop, name="tesserae-sse", daemon=True)
         self._thread.start()
 
     def stop(self) -> None:

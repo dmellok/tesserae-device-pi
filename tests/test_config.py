@@ -67,9 +67,7 @@ def test_negative_keepalive_rejected() -> None:
 
 
 def test_missing_client_id_rejected() -> None:
-    bad = DEFAULT_TOML.replace(
-        'client_id = "pi-impression-png-1"\n', ""
-    )
+    bad = DEFAULT_TOML.replace('client_id = "pi-impression-png-1"\n', "")
     with pytest.raises(ValueError, match="client_id"):
         parse_toml(bad)
 
@@ -93,9 +91,9 @@ def test_non_positive_max_frame_bytes_rejected() -> None:
 
 
 def test_overrides_take_effect() -> None:
-    bad = DEFAULT_TOML.replace(
-        'host = "192.168.1.10"', 'host = "broker.local"'
-    ).replace("port = 1883", "port = 8883")
+    bad = DEFAULT_TOML.replace('host = "192.168.1.10"', 'host = "broker.local"').replace(
+        "port = 1883", "port = 8883"
+    )
     cfg = parse_toml(bad)
     assert cfg.mqtt.host == "broker.local"
     assert cfg.mqtt.port == 8883
@@ -190,9 +188,7 @@ def test_default_transport_mode_is_rest() -> None:
 
 
 def test_unknown_transport_mode_rejected() -> None:
-    bad = DEFAULT_TOML.replace(
-        'transport_mode = "rest"', 'transport_mode = "carrier-pigeon"'
-    )
+    bad = DEFAULT_TOML.replace('transport_mode = "rest"', 'transport_mode = "carrier-pigeon"')
     with pytest.raises(ValueError, match="transport_mode"):
         parse_toml(bad)
 
@@ -200,9 +196,7 @@ def test_unknown_transport_mode_rejected() -> None:
 def test_rest_mode_requires_server_url() -> None:
     # DEFAULT_TOML already has rest mode with a placeholder server_url —
     # strip the value to trigger the missing-url validation.
-    bad = DEFAULT_TOML.replace(
-        'server_url = "http://tesserae.local:8765"', 'server_url = ""'
-    )
+    bad = DEFAULT_TOML.replace('server_url = "http://tesserae.local:8765"', 'server_url = ""')
     with pytest.raises(ValueError, match="server_url"):
         parse_toml(bad)
 
@@ -222,9 +216,9 @@ def test_rest_mode_with_custom_server_url_parses() -> None:
 def test_missing_transport_mode_defaults_to_mqtt() -> None:
     # A config predating the REST split (no transport_mode key) keeps the
     # MQTT behaviour without prompting the user to re-pair.
-    body = "\n".join(
-        line for line in DEFAULT_TOML.splitlines() if "transport_mode" not in line
-    ) + "\n"
+    body = (
+        "\n".join(line for line in DEFAULT_TOML.splitlines() if "transport_mode" not in line) + "\n"
+    )
     cfg = parse_toml(body)
     assert cfg.transport_mode == "mqtt"
 
@@ -314,10 +308,14 @@ def test_buttons_default_off_with_auto_pin_c() -> None:
     assert cfg.buttons.enabled is False
     assert cfg.buttons.pin_c == BUTTON_PIN_C_AUTO
     assert cfg.buttons.resolved((1600, 1200)).pin_actions() == {
-        5: "left", 6: "refresh", 25: "right",
+        5: "left",
+        6: "refresh",
+        25: "right",
     }
     assert cfg.buttons.resolved((800, 480)).pin_actions() == {
-        5: "left", 6: "refresh", 16: "right",
+        5: "left",
+        6: "refresh",
+        16: "right",
     }
 
 
@@ -377,9 +375,7 @@ def test_rest_tz_and_sse_round_trip() -> None:
     cfg = parse_toml(DEFAULT_TOML)
     assert cfg.rest.tz == ""
     assert cfg.rest.sse_enabled is True
-    updated = replace(
-        cfg, rest=replace(cfg.rest, tz="Australia/Hobart", sse_enabled=False)
-    )
+    updated = replace(cfg, rest=replace(cfg.rest, tz="Australia/Hobart", sse_enabled=False))
     reparsed = parse_toml(render_from_config(updated))
     assert reparsed.rest.tz == "Australia/Hobart"
     assert reparsed.rest.sse_enabled is False
@@ -417,9 +413,7 @@ def test_dropped_pairing_still_round_trips() -> None:
     """A revoked pairing legitimately leaves neither key nor code. The daemon
     writes that state, so the parser must be able to read it back — otherwise
     a restart after revocation cannot start."""
-    cfg = parse_toml(
-        DEFAULT_TOML.replace('transport_mode = "rest"', 'transport_mode = "relay"')
-    )
+    cfg = parse_toml(DEFAULT_TOML.replace('transport_mode = "rest"', 'transport_mode = "relay"'))
     dropped = replace(
         cfg,
         relay=replace(cfg.relay, frame_key="", pairing_code="", device_token=""),
