@@ -261,7 +261,7 @@ collect_config_via_prompts() {
     echo
 
     echo "    A device id identifies this Pi to the Tesserae server."
-    echo "    The default 'pi_png' matches the server's pi_png_client kind;"
+    echo "    Any lowercase id (2-32 chars) works, e.g. 'pi_png' (the default);"
     echo "    pick something like 'pi_png_lounge' if you're running more"
     echo "    than one .png Pi against the same server."
     prompt_default device_id       "Device id"          "pi_png"
