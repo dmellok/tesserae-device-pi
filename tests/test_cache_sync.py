@@ -14,8 +14,8 @@ from typing import Any
 
 from PIL.Image import new as new_image
 
-from tesserae_pi_png_client.cache_sync import CacheManager
-from tesserae_pi_png_client.frame_cache import digest_of
+from tesserae_pi_client.cache_sync import CacheManager
+from tesserae_pi_client.frame_cache import digest_of
 
 PANEL = (600, 448)
 

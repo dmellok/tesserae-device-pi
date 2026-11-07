@@ -44,7 +44,7 @@ _UNSAFE = re.compile(r"[^A-Za-z0-9_.:-]")
 
 FRAME_SUFFIX = ".png"
 
-DEFAULT_CACHE_ROOT = Path.home() / ".cache" / "tesserae-pi-png-client"
+DEFAULT_CACHE_ROOT = Path.home() / ".cache" / "tesserae-pi-client"
 
 
 def digest_of(data: bytes) -> str:

@@ -8,14 +8,14 @@ import pytest
 from PIL.Image import Image
 from PIL.Image import new as new_image
 
-from tesserae_pi_png_client.config import (
+from tesserae_pi_client.config import (
     Config,
     HttpConfig,
     LoggingConfig,
     MqttConfig,
 )
-from tesserae_pi_png_client.heartbeat import Heartbeat, Status, status_topic
-from tesserae_pi_png_client.mqtt_loop import (
+from tesserae_pi_client.heartbeat import Heartbeat, Status, status_topic
+from tesserae_pi_client.mqtt_loop import (
     FrameDispatcher,
     FrameRequest,
     MessageHandler,

@@ -10,7 +10,7 @@ from typing import Any
 
 import pytest
 
-from tesserae_pi_png_client.deck import (
+from tesserae_pi_client.deck import (
     DeckParseError,
     nav_button,
     nav_zone,

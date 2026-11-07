@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from tesserae_pi_png_client.config import (
+from tesserae_pi_client.config import (
     BUTTON_PIN_C_AUTO,
     DEFAULT_TOML,
     Config,
@@ -432,7 +432,7 @@ def test_cache_defaults_on_with_xdg_root() -> None:
     cfg = parse_toml(DEFAULT_TOML)
     assert cfg.cache.enabled is True
     assert cfg.cache.root == ""
-    assert cfg.cache.root_path().name == "tesserae-pi-png-client"
+    assert cfg.cache.root_path().name == "tesserae-pi-client"
 
 
 def test_cache_root_expands_user() -> None:

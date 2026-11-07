@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# One-shot installer for tesserae-pi-png-client on a fresh Raspberry Pi OS.
+# One-shot installer for tesserae-pi-client on a fresh Raspberry Pi OS.
 #
 # Run this AS YOUR NORMAL USER (NOT root, not via sudo). The script calls
 # sudo internally for the privileged bits (apt, raspi-config, usermod, ln,
@@ -19,7 +19,7 @@
 #   5b. (--bookworm only) pip install rpi-lgpio   (Pi 5 / Bookworm replaces RPi.GPIO)
 #   6. interactive prompt → write ~/.config/.../config.toml
 #      (skipped if the file already exists, unless --reconfigure)
-#   7. ln -sf .venv/bin/tesserae-pi-png-client /usr/local/bin/...
+#   7. ln -sf .venv/bin/tesserae-pi-client /usr/local/bin/...
 #   8. scripts/install-service.sh $USER          (systemd unit + enable + start,
 #                                                  unless --no-service)
 #
@@ -71,8 +71,8 @@ done
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 VENV_DIR="${REPO_DIR}/.venv"
-BIN_LINK="/usr/local/bin/tesserae-pi-png-client"
-CONFIG_PATH="${HOME}/.config/tesserae-pi-png-client/config.toml"
+BIN_LINK="/usr/local/bin/tesserae-pi-client"
+CONFIG_PATH="${HOME}/.config/tesserae-pi-client/config.toml"
 
 if [[ "$(id -u)" -eq 0 ]]; then
     echo "error: run as your normal user, NOT root or via sudo." >&2
@@ -335,7 +335,7 @@ write_config() {
         T_DEVICE_ID="${device_id:-}" \
         T_BUTTONS_ENABLED="${buttons_enabled:-}" \
         T_OVERWRITE="$1" \
-        "$VENV_DIR/bin/python" -m tesserae_pi_png_client.bootstrap_config
+        "$VENV_DIR/bin/python" -m tesserae_pi_client.bootstrap_config
 }
 
 config_existed_before=false
@@ -361,8 +361,8 @@ else
 fi
 
 # ----- 7. /usr/local/bin symlink -----
-echo "==> linking $BIN_LINK -> $VENV_DIR/bin/tesserae-pi-png-client"
-sudo ln -sf "$VENV_DIR/bin/tesserae-pi-png-client" "$BIN_LINK"
+echo "==> linking $BIN_LINK -> $VENV_DIR/bin/tesserae-pi-client"
+sudo ln -sf "$VENV_DIR/bin/tesserae-pi-client" "$BIN_LINK"
 
 # ----- 8. systemd unit (optional) -----
 if $INSTALL_SERVICE; then
@@ -380,7 +380,7 @@ if $RUN_PAINT_TEST; then
         echo "    reboot (or at least log out + back in)."
     else
         echo "==> running --paint-test"
-        "$VENV_DIR/bin/tesserae-pi-png-client" --paint-test || \
+        "$VENV_DIR/bin/tesserae-pi-client" --paint-test || \
             echo "    (paint-test failed — see logs above)"
     fi
 fi
@@ -407,13 +407,13 @@ elif $needs_relogin; then
     echo
 fi
 if $INSTALL_SERVICE; then
-    echo "  service: sudo systemctl status tesserae-pi-png-client"
-    echo "           sudo journalctl -u tesserae-pi-png-client -f"
-    echo "           sudo systemctl restart tesserae-pi-png-client  # after config edits"
+    echo "  service: sudo systemctl status tesserae-pi-client"
+    echo "           sudo journalctl -u tesserae-pi-client -f"
+    echo "           sudo systemctl restart tesserae-pi-client  # after config edits"
 else
     echo "  service: not installed (re-run without --no-service to install)"
 fi
 echo
-echo "  manual:  tesserae-pi-png-client --paint-test   # paints a colour stripe"
-echo "           tesserae-pi-png-client                # run in foreground"
+echo "  manual:  tesserae-pi-client --paint-test   # paints a colour stripe"
+echo "           tesserae-pi-client                # run in foreground"
 echo

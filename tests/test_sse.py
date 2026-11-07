@@ -7,7 +7,7 @@ from __future__ import annotations
 import threading
 from typing import Any
 
-from tesserae_pi_png_client.transports.sse import (
+from tesserae_pi_client.transports.sse import (
     SILENCE_TIMEOUT_S,
     SseListener,
     iter_events,

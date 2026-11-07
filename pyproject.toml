@@ -3,7 +3,7 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "tesserae-pi-png-client"
+name = "tesserae-pi-client"
 version = "0.1.1"
 description = "Raspberry Pi daemon that subscribes to a Tesserae server over MQTT and paints PNG frames onto a Pimoroni e-ink panel via the inky library."
 readme = "README.md"
@@ -33,7 +33,7 @@ dev = [
 ]
 
 [project.scripts]
-tesserae-pi-png-client = "tesserae_pi_png_client.main:run"
+tesserae-pi-client = "tesserae_pi_client.main:run"
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -52,31 +52,31 @@ strict = false
 [[tool.mypy.overrides]]
 # Contract modules — strict.
 module = [
-    "tesserae_pi_png_client.config",
-    "tesserae_pi_png_client.transforms",
-    "tesserae_pi_png_client.heartbeat",
-    "tesserae_pi_png_client.mqtt_loop",
-    "tesserae_pi_png_client.transports.rest",
+    "tesserae_pi_client.config",
+    "tesserae_pi_client.transforms",
+    "tesserae_pi_client.heartbeat",
+    "tesserae_pi_client.mqtt_loop",
+    "tesserae_pi_client.transports.rest",
     # Added for firmware parity — same bar as the rest.
-    "tesserae_pi_png_client.button_report",
-    "tesserae_pi_png_client.collection",
-    "tesserae_pi_png_client.deck",
-    "tesserae_pi_png_client.frame_cache",
-    "tesserae_pi_png_client.ota_report",
-    "tesserae_pi_png_client.png_frame",
-    "tesserae_pi_png_client.relay_crypto",
-    "tesserae_pi_png_client.transports.sse",
+    "tesserae_pi_client.button_report",
+    "tesserae_pi_client.collection",
+    "tesserae_pi_client.deck",
+    "tesserae_pi_client.frame_cache",
+    "tesserae_pi_client.ota_report",
+    "tesserae_pi_client.png_frame",
+    "tesserae_pi_client.relay_crypto",
+    "tesserae_pi_client.transports.sse",
 ]
 strict = true
 
 [[tool.mypy.overrides]]
 # Hardware-touching paths — defaults.
 module = [
-    "tesserae_pi_png_client.paint",
-    "tesserae_pi_png_client.main",
-    "tesserae_pi_png_client.buttons",
-    "tesserae_pi_png_client.environment",
-    "tesserae_pi_png_client.transports.mqtt",
+    "tesserae_pi_client.paint",
+    "tesserae_pi_client.main",
+    "tesserae_pi_client.buttons",
+    "tesserae_pi_client.environment",
+    "tesserae_pi_client.transports.mqtt",
 ]
 ignore_missing_imports = true
 

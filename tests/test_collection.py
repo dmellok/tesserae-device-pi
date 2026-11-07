@@ -10,7 +10,7 @@ from typing import Any
 
 import pytest
 
-from tesserae_pi_png_client.collection import (
+from tesserae_pi_client.collection import (
     INTERVAL_MIN_S,
     AlbumPlayer,
     CollectionParseError,

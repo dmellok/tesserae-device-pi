@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from tesserae_pi_png_client.environment import (
+from tesserae_pi_client.environment import (
     EnvironmentSensor,
     Reading,
     _crc8,

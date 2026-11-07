@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 from PIL.Image import new as new_image
 
-from tesserae_pi_png_client.transforms import (
+from tesserae_pi_client.transforms import (
     BG_COLORS,
     DEFAULT_BG,
     VALID_SCALES,

@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import pytest
 
-from tesserae_pi_png_client.relay_crypto import (
+from tesserae_pi_client.relay_crypto import (
     RelayCryptoError,
     b64url_decode,
     b64url_encode,

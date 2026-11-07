@@ -141,7 +141,7 @@ class ButtonWatcher:
         offsets = [self._offset_for(chip, pin) for pin in pins]
         self._offset_to_pin = dict(zip(offsets, pins, strict=True))
         return chip.request_lines(
-            consumer="tesserae-pi-png-client",
+            consumer="tesserae-pi-client",
             config=dict.fromkeys(offsets, settings),
         )
 

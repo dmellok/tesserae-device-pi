@@ -4,7 +4,7 @@ GPIO, no HTTP.
 """
 from __future__ import annotations
 
-from tesserae_pi_png_client.button_report import (
+from tesserae_pi_client.button_report import (
     ButtonReport,
     frame_status_acknowledges,
 )

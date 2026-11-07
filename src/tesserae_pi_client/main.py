@@ -176,7 +176,7 @@ def _apply_relay_pair_flag(config: Config, pair_code: str, config_path: Path) ->
 
 def run(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        prog="tesserae-pi-png-client",
+        prog="tesserae-pi-client",
         description="Subscribe to a Tesserae server and paint PNG frames "
         "onto a Pimoroni e-ink panel via the inky library.",
     )

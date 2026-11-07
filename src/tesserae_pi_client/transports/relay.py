@@ -53,7 +53,7 @@ HTTP_TIMEOUT_S = 20.0
 # ever reaches the Worker. Any descriptive UA passes; home sends
 # `tesserae/relay`. Without this the daemon fails with a 403 that looks like an
 # auth problem but is not one.
-USER_AGENT = "tesserae-pi-png-client/relay"
+USER_AGENT = "tesserae-pi-client/relay"
 
 PAIR_RETRY_S = 15
 TRANSIENT_FAILURE_BACKOFF_S = 30

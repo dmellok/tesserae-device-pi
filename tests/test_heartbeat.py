@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from tesserae_pi_png_client.heartbeat import (
+from tesserae_pi_client.heartbeat import (
     OFFLINE_WILL_PAYLOAD,
     Heartbeat,
     Status,
