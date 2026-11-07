@@ -67,10 +67,15 @@ class ButtonWatcher:
         cfg: ButtonsConfig,
         report: ButtonReport,
         on_press: Callable[[str], None] | None = None,
+        on_reset_hold: Callable[[], None] | None = None,
     ) -> None:
         self._cfg = cfg
         self._report = report
         self._on_press = on_press
+        self._on_reset_hold = on_reset_hold
+        # pin -> monotonic time its press began, for the refresh pin(s) only,
+        # while the button is still down (see check_holds).
+        self._held_since: dict[int, float] = {}
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
         self._request: Any = None
@@ -185,6 +190,7 @@ class ButtonWatcher:
                 # Bounded wait so stop() is honoured promptly even on a panel
                 # nobody is touching.
                 if not request.wait_edge_events(timedelta_or_none(0.5)):
+                    self._poll_holds(request, time.monotonic())
                     continue
                 events = request.read_edge_events()
             except Exception as exc:  # noqa: BLE001 - a bad read must not kill paint
@@ -195,6 +201,7 @@ class ButtonWatcher:
                 )
                 return
             now = time.monotonic()
+            self._poll_holds(request, now)
             for event in events:
                 pin = self._offset_to_pin.get(event.line_offset)
                 if pin is None:
@@ -214,6 +221,52 @@ class ButtonWatcher:
                 )
                 if self._on_press is not None:
                     self._on_press(action)
+                if action == RESET_ACTION and self._on_reset_hold is not None:
+                    self._held_since[pin] = now
+
+    def _poll_holds(self, request: Any, now: float) -> None:
+        """Read the level of every refresh pin still held, and act on it."""
+        if not self._held_since:
+            return
+
+        def pressed(pin: int) -> bool:
+            from gpiod.line import Value
+
+            offset = next(o for o, p in self._offset_to_pin.items() if p == pin)
+            # Pull-up, active-high line: a pressed button reads INACTIVE (low).
+            return bool(request.get_value(offset) == Value.INACTIVE)
+
+        try:
+            fired = check_holds(self._held_since, now, pressed)
+        except Exception as exc:  # noqa: BLE001 - a bad read must not kill paint
+            log.warning("buttons: hold check failed (%s); ignoring", exc)
+            self._held_since.clear()
+            return
+        if fired and self._on_reset_hold is not None:
+            log.warning("refresh held %ds: factory reset", RESET_HOLD_S)
+            self._on_reset_hold()
+
+
+#: The button whose long hold factory-resets the Pi, as on the firmware.
+RESET_ACTION = "refresh"
+#: How long it must be held, in seconds (the firmware's figure).
+RESET_HOLD_S = 20.0
+
+
+def check_holds(held_since: dict[int, float], now: float, pressed: Callable[[int], bool]) -> bool:
+    """Advance the hold timers; True once a pin has been down ``RESET_HOLD_S``.
+
+    ``held_since`` (pin -> press time) is updated in place: a released pin
+    drops out, and a pin that fires drops out too, so one hold resets once.
+    """
+    fired = False
+    for pin, since in list(held_since.items()):
+        if not pressed(pin):
+            del held_since[pin]
+        elif now - since >= RESET_HOLD_S:
+            del held_since[pin]
+            fired = True
+    return fired
 
 
 def timedelta_or_none(seconds: float) -> Any:
@@ -227,6 +280,9 @@ __all__ = [
     "CHIP_CANDIDATES",
     "PIN_C_LARGE",
     "PIN_C_SMALL",
+    "RESET_ACTION",
+    "RESET_HOLD_S",
     "ButtonWatcher",
+    "check_holds",
     "default_pin_c",
 ]

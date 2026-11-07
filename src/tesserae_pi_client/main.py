@@ -12,6 +12,7 @@ from . import __version__
 from .config import (
     DEFAULT_CONFIG_PATH,
     Config,
+    factory_reset,
     load_config,
     save_config,
     with_relay_updates,
@@ -209,6 +210,12 @@ def run(argv: list[str] | None = None) -> int:
         help="paint a colour stripe pattern and exit (no MQTT/REST)",
     )
     parser.add_argument(
+        "--factory-reset",
+        action="store_true",
+        help="forget this Pi's pairing (REST token and cloud-relay credentials) and "
+        "exit; the next start pairs again. Same as holding Refresh for 20 s.",
+    )
+    parser.add_argument(
         "--pair",
         metavar="CODE",
         default=None,
@@ -224,6 +231,10 @@ def run(argv: list[str] | None = None) -> int:
     config = load_config(args.config)
     _setup_logging(config.logging.level)
 
+    if args.factory_reset:
+        save_config(factory_reset(config), args.config)
+        log.warning("factory reset: pairing forgotten in %s; restart to pair again", args.config)
+        return 0
     if args.paint_test:
         return _do_paint_test(config)
     if args.pair is not None:

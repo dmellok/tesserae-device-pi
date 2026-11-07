@@ -677,14 +677,33 @@ def test_apply_status_response_merges_sleep_interval_durably(tmp_path: Path) -> 
 
 def test_apply_status_response_clamps_next_poll() -> None:
     cfg = _config(poll_interval_s=60)
-    # next_poll_s under floor (30) → clamped up.
+    # A stay-awake device is answered from awake_poll_s (5..300): honoured
+    # down to the awake floor, not the 30 s floor for the local interval.
     _new_cfg, next_poll = _apply_status_response(cfg, {"next_poll_s": 5}, Path("/dev/null"))
-    assert next_poll == rest.POLL_INTERVAL_MIN_S
+    assert next_poll == 5
+    _new_cfg, next_poll = _apply_status_response(cfg, {"next_poll_s": 1}, Path("/dev/null"))
+    assert next_poll == rest.SERVER_POLL_MIN_S
     # next_poll_s over ceiling (week) → clamped down.
     _new_cfg, next_poll = _apply_status_response(
         cfg, {"next_poll_s": 99_999_999}, Path("/dev/null")
     )
     assert next_poll == rest.POLL_INTERVAL_MAX_S
+
+
+def test_with_no_server_cadence_the_local_interval_is_used() -> None:
+    cfg = _config(poll_interval_s=60)
+    assert _apply_status_response(cfg, {}, Path("/dev/null"))[1] == 60
+    assert _apply_status_response(cfg, None, Path("/dev/null"))[1] == 60
+
+
+def test_wake_at_is_honoured_as_an_absolute_target(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(rest.time, "time", lambda: 1_000_000.0)
+    cfg = _config(poll_interval_s=60)
+    body = {"next_poll_s": 90, "wake_at": 1_000_042}
+    assert _apply_status_response(cfg, body, Path("/dev/null"))[1] == 42
+    # A wake_at already past falls back to next_poll_s.
+    body = {"next_poll_s": 90, "wake_at": 999_000}
+    assert _apply_status_response(cfg, body, Path("/dev/null"))[1] == 90
 
 
 def test_apply_status_response_ignores_out_of_range_sleep_interval(tmp_path: Path) -> None:

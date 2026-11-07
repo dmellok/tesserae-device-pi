@@ -31,7 +31,7 @@ from typing import Any
 import requests
 
 from ..button_report import ButtonReport
-from ..config import Config, save_config, with_relay_updates
+from ..config import FACTORY_RESET_EXIT, Config, factory_reset, save_config, with_relay_updates
 from ..frame import FrameRejected, load
 from ..heartbeat import LEGACY_KIND, Status, _wifi_rssi
 from ..mqtt_loop import PaintFn
@@ -366,6 +366,7 @@ def run(
     report = ButtonReport()
     watcher = None
     wake = threading.Event()
+    reset_requested = threading.Event()
     if config.buttons.enabled:
         from ..buttons import ButtonWatcher
 
@@ -373,11 +374,16 @@ def run(
             config.buttons.resolved((status.panel_w, status.panel_h)),
             report,
             on_press=lambda _a: wake.set(),
+            on_reset_hold=lambda: _request(reset_requested, wake),
         )
         watcher.start()
 
     try:
         while not shutdown.is_set():
+            if reset_requested.is_set():
+                save_config(factory_reset(config), config_path)
+                log.warning("factory reset: pairing forgotten; restarting to pair again")
+                return FACTORY_RESET_EXIT
             config, next_poll, should_exit = _wake_cycle(
                 client, config, status, paint_fn, config_path, report
             )
@@ -390,6 +396,12 @@ def run(
         if watcher is not None:
             watcher.stop()
     return 0
+
+
+def _request(flag: threading.Event, wake: threading.Event) -> None:
+    """Raise ``flag`` and wake the loop so it acts on it now."""
+    flag.set()
+    wake.set()
 
 
 def _sleep_until_wake(shutdown: threading.Event, wake: threading.Event, seconds: int) -> bool:

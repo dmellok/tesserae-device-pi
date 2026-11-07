@@ -34,7 +34,14 @@ from ..battery import BatteryMonitor
 from ..battery import payload_for as battery_payload
 from ..button_report import ButtonReport, frame_status_acknowledges
 from ..cache_sync import CacheManager
-from ..config import Config, RestConfig, save_config, with_rest_updates
+from ..config import (
+    FACTORY_RESET_EXIT,
+    Config,
+    RestConfig,
+    factory_reset,
+    save_config,
+    with_rest_updates,
+)
 from ..environment import EnvironmentSensor
 from ..environment import payload_for as env_payload
 from ..heartbeat import LEGACY_KIND, Status, _wifi_rssi
@@ -50,6 +57,11 @@ HTTP_TIMEOUT_S = 15.0
 # or very short intervals, but we cap so a misconfigured server can't pin the
 # daemon at sub-second polling or month-long silence.
 POLL_INTERVAL_MIN_S = 30
+# The floor for a cadence the server asks for (next_poll_s / wake_at). A
+# device set to stay awake is answered from its awake_poll_s, 5..300 s on the
+# server, so the 30 s floor above (for the locally configured interval) would
+# defeat it. A Pi is mains-powered and holds SSE open anyway.
+SERVER_POLL_MIN_S = 5
 POLL_INTERVAL_MAX_S = 7 * 24 * 60 * 60  # one week
 
 DISCOVER_DEFAULT_RETRY_S = 30
@@ -533,11 +545,22 @@ def _apply_status_response(
             cfg = with_rest_updates(cfg, tz=tz)
             save_config(cfg, config_path)
 
+    # wake_at is the same instant as next_poll_s as an absolute epoch, sent
+    # when the server aligns wakes to the clock. A Pi's clock is NTP-disciplined,
+    # so the absolute target is the more exact of the two.
+    wake_at = body.get("wake_at")
     nps = body.get("next_poll_s")
-    if isinstance(nps, (int, float)):
-        next_poll = int(nps)
+    now = time.time()
+    if isinstance(wake_at, (int, float)) and not isinstance(wake_at, bool) and wake_at > now:
+        return cfg, _clamp_server_poll(int(wake_at - now))
+    if isinstance(nps, (int, float)) and not isinstance(nps, bool):
+        return cfg, _clamp_server_poll(int(nps))
 
     return cfg, _clamp_poll(next_poll)
+
+
+def _clamp_server_poll(value: int) -> int:
+    return max(SERVER_POLL_MIN_S, min(POLL_INTERVAL_MAX_S, value))
 
 
 class Telemetry:
@@ -609,6 +632,7 @@ def run(
     # 2. Push + input sources. Both only ever *shorten* the sleep below; the
     #    wake cycle stays the sole path that fetches and paints.
     wake = threading.Event()
+    reset_requested = threading.Event()
     report = ButtonReport()
 
     panel_size = (status.panel_w, status.panel_h)
@@ -633,6 +657,7 @@ def run(
             config.buttons.resolved(panel_size),
             report,
             on_press=lambda _a: wake.set(),
+            on_reset_hold=lambda: _request(reset_requested, wake),
         )
         watcher.start()
 
@@ -653,6 +678,10 @@ def run(
     # 3. Wake loop.
     try:
         while not shutdown.is_set():
+            if reset_requested.is_set():
+                save_config(factory_reset(config), config_path)
+                log.warning("factory reset: pairing forgotten; restarting to pair again")
+                return FACTORY_RESET_EXIT
             config, next_poll, should_exit = _wake_cycle(
                 client,
                 config,
@@ -679,6 +708,12 @@ def run(
         if listener is not None:
             listener.stop()
     return 0
+
+
+def _request(flag: threading.Event, wake: threading.Event) -> None:
+    """Raise ``flag`` and wake the loop so it acts on it now."""
+    flag.set()
+    wake.set()
 
 
 def _sleep_until_wake(shutdown: threading.Event, wake: threading.Event, seconds: int) -> bool:

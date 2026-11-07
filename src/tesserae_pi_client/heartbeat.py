@@ -132,6 +132,10 @@ class Status:
             "panel_w": self.panel_w,
             "panel_h": self.panel_h,
             "ip": self.ip,
+            # A Pi is mains-powered and never deep-sleeps, so it can always
+            # stay awake. The server offers the "Stay awake" (always_on)
+            # setting only to devices that advertise this.
+            "can_stay_awake": True,
         }
         if self.gamuts:
             body["gamuts"] = list(self.gamuts)

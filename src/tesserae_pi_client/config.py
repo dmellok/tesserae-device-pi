@@ -765,7 +765,36 @@ def with_relay_updates(cfg: Config, **relay_fields: Any) -> Config:
     return replace(cfg, relay=replace(cfg.relay, **relay_fields))
 
 
+#: Exit code after a factory reset: systemd (Restart=on-failure) starts the
+#: client again, which, with no token, goes straight into pairing.
+FACTORY_RESET_EXIT = 3
+
+
+def factory_reset(cfg: Config) -> Config:
+    """Forget every pairing, as the firmware's 20 s Refresh hold does.
+
+    Drops the REST token (and its frame ETag and any pairing code) and the
+    cloud-relay credentials. Keeps what is about this Pi rather than about
+    one pairing: the server URL, transport, device id, buttons, sensors. The
+    frame cache stays too; its entries are digest-verified before use.
+    """
+    cfg = with_rest_updates(cfg, device_token="", pairing_code="", last_frame_etag="")
+    return with_relay_updates(
+        cfg,
+        pairing_code="",
+        install_id="",
+        device_id="",
+        device_token="",
+        frame_key="",
+        private_key="",
+        last_frame_etag="",
+        config_etag="",
+    )
+
+
 __all__ = [
+    "FACTORY_RESET_EXIT",
+    "factory_reset",
     "BUTTON_ACTIONS",
     "BUTTON_PIN_C_AUTO",
     "DEFAULT_CONFIG_PATH",
