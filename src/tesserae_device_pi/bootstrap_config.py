@@ -16,7 +16,7 @@ Env vars (all optional — unset means "use the default"):
     T_MQTT_USERNAME
     T_MQTT_PASSWORD
     T_MQTT_CLIENT_ID
-    T_DEVICE_ID          device id (default: pi_png)
+    T_DEVICE_ID          device id (default: pi_device)
     T_BUTTONS_ENABLED    "1" to arm the front buttons (off by default)
     T_OVERWRITE          "1" to overwrite an existing file; otherwise abort
 

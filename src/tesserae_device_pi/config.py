@@ -10,7 +10,13 @@ from typing import Any
 
 DEFAULT_CONFIG_PATH = Path.home() / ".config" / "tesserae-device-pi" / "config.toml"
 
-DEFAULT_DEVICE_ID = "pi_png"
+# The id a fresh install suggests and writes.
+DEFAULT_DEVICE_ID = "pi_device"
+
+# The id a config with no device_id key resolves to. Early pi-png installs
+# predate the key and have always resolved to "pi_png" (their REST id and MQTT
+# topic prefix), so this stays put even though fresh installs moved on.
+LEGACY_DEVICE_ID = "pi_png"
 
 # Matches the instance-id grammar the Tesserae server accepts: lowercase,
 # 2-32 chars, must start with a letter. The device_id becomes the MQTT topic
@@ -398,7 +404,7 @@ def _parse(raw: dict[str, Any]) -> Config:
     mqtt_section = raw.get("mqtt", {})
     if not isinstance(mqtt_section, dict):
         raise ValueError("[mqtt] must be a table")
-    device_id = mqtt_section.get("device_id", DEFAULT_DEVICE_ID)
+    device_id = mqtt_section.get("device_id", LEGACY_DEVICE_ID)
     if not isinstance(device_id, str):
         raise ValueError(f"[mqtt].device_id must be str, got {type(device_id).__name__}")
     if not _DEVICE_ID_RE.match(device_id):
@@ -813,6 +819,7 @@ __all__ = [
     "BUTTON_PIN_C_AUTO",
     "DEFAULT_CONFIG_PATH",
     "DEFAULT_DEVICE_ID",
+    "LEGACY_DEVICE_ID",
     "DEFAULT_TOML",
     "BATTERY_SOURCES",
     "ENV_SENSORS",

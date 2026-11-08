@@ -261,14 +261,14 @@ collect_config_via_prompts() {
     echo
 
     echo "    A device id identifies this Pi to the Tesserae server."
-    echo "    Any lowercase id (2-32 chars) works, e.g. 'pi_png' (the default);"
-    echo "    pick something like 'pi_png_lounge' if you're running more"
+    echo "    Any lowercase id (2-32 chars) works, e.g. 'pi_device' (the default);"
+    echo "    pick something like 'pi_lounge' if you're running more"
     echo "    than one Pi against the same server."
-    prompt_default device_id       "Device id"          "pi_png"
+    prompt_default device_id       "Device id"          "pi_device"
     # Client-side sanity check; the parser also enforces this regex.
     if ! [[ "$device_id" =~ ^[a-z][a-z0-9_-]{1,31}$ ]]; then
-        echo "    invalid device id; falling back to 'pi_png'" >&2
-        device_id="pi_png"
+        echo "    invalid device id; falling back to 'pi_device'" >&2
+        device_id="pi_device"
     fi
 
     if [[ "$transport_mode" == "rest" ]]; then

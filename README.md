@@ -140,7 +140,7 @@ port = 1883
 username = ""
 password = ""
 client_id = "pi-impression-png-1"
-device_id = "pi_png"  # MQTT topic prefix (also identifies this device to REST)
+device_id = "pi_device"  # MQTT topic prefix (also identifies this device to REST)
 keepalive = 60
 
 [rest]
@@ -296,8 +296,9 @@ Restart with `--pair` or rely on the discover loop to recover.
 ## MQTT contract
 
 Active when `transport_mode = "mqtt"`. All topics are prefixed with the
-configured `device_id` (default `pi_png`), i.e. `tesserae/<device_id>/...`.
-The examples below use the default.
+configured `device_id` (default `pi_device`), i.e. `tesserae/<device_id>/...`.
+The examples below use `pi_png`, the id of a device paired by the earlier
+pi-png client.
 
 ### Subscribe
 

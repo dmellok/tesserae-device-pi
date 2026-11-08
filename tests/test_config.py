@@ -28,7 +28,7 @@ def test_default_toml_parses() -> None:
     assert cfg.mqtt.username == ""
     assert cfg.mqtt.password == ""
     assert cfg.mqtt.client_id == "pi-impression-png-1"
-    assert cfg.mqtt.device_id == "pi_png"
+    assert cfg.mqtt.device_id == "pi_device"
     assert cfg.mqtt.keepalive == 60
     assert cfg.http.download_timeout_s == 30
     assert cfg.http.max_frame_bytes == 16_000_000
@@ -137,12 +137,13 @@ def test_bool_value_for_int_field_rejected() -> None:
         parse_toml(bad)
 
 
-def test_device_id_defaults_when_missing() -> None:
-    # An older config.toml predating device_id should parse with the new default.
-    without = DEFAULT_TOML.replace('device_id = "pi_png"  # MQTT topic prefix\n', "")
+def test_a_config_without_device_id_keeps_the_legacy_pi_png_id() -> None:
+    # Early pi-png installs predate device_id. They have always resolved to
+    # pi_png, so the new fresh-install default must not move them.
+    without = DEFAULT_TOML.replace('device_id = "pi_device"  # MQTT topic prefix\n', "")
     # [relay] carries its own device_id (written by pairing), so check the
     # [mqtt] one specifically rather than the bare substring.
-    assert 'device_id = "pi_png"' not in without
+    assert 'device_id = "pi_device"' not in without
     cfg = parse_toml(without)
     assert cfg.mqtt.device_id == "pi_png"
 
@@ -154,19 +155,19 @@ def test_device_id_override_round_trips() -> None:
 
 
 def test_invalid_device_id_uppercase_rejected() -> None:
-    bad = DEFAULT_TOML.replace('device_id = "pi_png"', 'device_id = "Pi_PNG"')
+    bad = DEFAULT_TOML.replace('device_id = "pi_device"', 'device_id = "Pi_PNG"')
     with pytest.raises(ValueError, match="device_id"):
         parse_toml(bad)
 
 
 def test_invalid_device_id_leading_digit_rejected() -> None:
-    bad = DEFAULT_TOML.replace('device_id = "pi_png"', 'device_id = "1pi"')
+    bad = DEFAULT_TOML.replace('device_id = "pi_device"', 'device_id = "1pi"')
     with pytest.raises(ValueError, match="device_id"):
         parse_toml(bad)
 
 
 def test_invalid_device_id_too_short_rejected() -> None:
-    bad = DEFAULT_TOML.replace('device_id = "pi_png"', 'device_id = "p"')
+    bad = DEFAULT_TOML.replace('device_id = "pi_device"', 'device_id = "p"')
     with pytest.raises(ValueError, match="device_id"):
         parse_toml(bad)
 
