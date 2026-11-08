@@ -144,7 +144,7 @@ def render(screen: Screen, size: tuple[int, int]) -> Image.Image:
     draw = ImageDraw.Draw(img)
     unit = max(8, min(width, height) // 20)
     margin = unit * 2
-    title_font, body_font, small_font = _font(unit * 2), _font(unit), _font(max(8, unit * 2 // 3))
+    body_font, small_font = _font(unit), _font(max(8, unit * 2 // 3))
 
     text_w = width - 2 * margin - unit
     if screen.qr:
@@ -153,9 +153,21 @@ def render(screen: Screen, size: tuple[int, int]) -> Image.Image:
             text_w -= side + unit
 
     y = margin
-    draw.rectangle([(margin, y), (margin + unit // 2, y + unit * 2)], fill=_ACCENT)
-    draw.text((margin + unit, y), screen.title, font=title_font, fill=_INK)
-    y += unit * 3 + unit // 2
+    logo = unit * 3
+    _draw_logo(draw, margin, y, logo)
+    title_w = width - margin * 2 - logo - unit
+    for pt in range(unit * 2, unit - 1, -max(1, unit // 8)):
+        title_font = _font(pt)
+        if draw.textlength(screen.title, font=title_font) <= title_w:
+            break
+    draw.text(
+        (margin + logo + unit, y + logo // 2),
+        _fit(draw, screen.title, title_font, title_w),
+        font=title_font,
+        fill=_INK,
+        anchor="lm",
+    )
+    y += logo + unit
     for line in screen.lines:
         if line:
             draw.text(
@@ -168,6 +180,36 @@ def render(screen: Screen, size: tuple[int, int]) -> Image.Image:
     if screen.footer:
         draw.text((margin, height - margin), screen.footer, font=small_font, fill=_INK, anchor="ls")
     return img
+
+
+def _draw_logo(draw: ImageDraw.ImageDraw, x: int, y: int, side: int) -> None:
+    """The Tesserae mark, ``side`` px square with its top-left at (x, y).
+
+    The drawing in tesserae.ink's Logo.astro (a 256-unit tile: ink, red square
+    top right, paper square bottom left), in the panel's own black, white and
+    red rather than the brand tones, so it lands on the glass undithered, as
+    the firmware's splash does.
+    """
+
+    def at(units: float) -> int:
+        return round(units * side / 256)
+
+    draw.rounded_rectangle([(x, y), (x + side - 1, y + side - 1)], radius=at(72), fill=_INK)
+    corner = max(1, at(27))
+    # Red top right: x 128-201, y 55-128, its outer (top-right) corner rounded.
+    draw.rounded_rectangle(
+        [(x + at(128), y + at(55)), (x + at(201) - 1, y + at(128) - 1)],
+        radius=corner,
+        fill=_ACCENT,
+        corners=(False, True, False, False),
+    )
+    # Paper bottom left: x 55-128, y 128-201, its outer (bottom-left) corner rounded.
+    draw.rounded_rectangle(
+        [(x + at(55), y + at(128)), (x + at(128) - 1, y + at(201) - 1)],
+        radius=corner,
+        fill=_PAPER,
+        corners=(False, False, False, True),
+    )
 
 
 def _draw_qr(img: Image.Image, data: str, width: int, height: int, margin: int) -> int:

@@ -101,3 +101,25 @@ def test_the_unlock_screen_carries_a_qr_code_beside_the_text() -> None:
     assert right.getextrema() != ((255, 255), (255, 255), (255, 255))  # the code is drawn
     # Too small for a scannable code: text only, no crash.
     assert render(screens.settings_unlocked(url, "", "0.9.0"), (212, 104)).size == (212, 104)
+
+
+@pytest.mark.parametrize("size", [(250, 122), (800, 480), (1600, 1200), (480, 800)])
+def test_every_screen_carries_the_tesserae_mark_top_left(size: tuple[int, int]) -> None:
+    img = render(screens.waiting_for_frame("10.0.0.5", "0.9.0"), size)
+    unit = max(8, min(size) // 20)
+    margin, side = unit * 2, unit * 3
+
+    def at(ux: int, uy: int) -> tuple[int, ...]:
+        # A point of the mark, in its 256-unit drawing.
+        return img.getpixel((margin + ux * side // 256, margin + uy * side // 256))  # type: ignore[return-value]
+
+    assert at(164, 92) == (255, 0, 0)  # the red square, top right
+    assert at(92, 164) == (255, 255, 255)  # the paper square, bottom left
+    assert at(92, 92) == (0, 0, 0)  # the ink tile around them
+    assert at(164, 164) == (0, 0, 0)
+
+
+def test_a_long_title_shrinks_to_fit_beside_the_mark() -> None:
+    img = render(screens.pairing_with_code("http://tesserae.local:8765", "", "0.9.0"), (400, 300))
+    # Nothing of the title reaches the right margin (unit 15, margin 30).
+    assert img.crop((370, 0, 400, 75)).getextrema() == ((255, 255), (255, 255), (255, 255))
