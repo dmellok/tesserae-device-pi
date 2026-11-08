@@ -1005,6 +1005,7 @@ def _wake_cycle(
     fallback = report.status_fields()
     status.button = str(fallback.get("button", ""))
     status.button_event_id = fallback.get("button_event_id")  # type: ignore[assignment]
+    status.button_key = str(fallback.get("button_key", ""))
     if fallback:
         log.info(
             "delivering button %r via /status (frame GET did not acknowledge)",
@@ -1040,6 +1041,7 @@ def _wake_cycle(
     report.clear()
     status.button = ""
     status.button_event_id = None
+    status.button_key = ""
 
     if post_code == 401:
         log.error("status POST 401: token invalid — wiping device_token, re-pair to recover")

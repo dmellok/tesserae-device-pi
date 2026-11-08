@@ -467,8 +467,20 @@ comment every 25 s — forces a reconnect.
 ### Front buttons — `?button=` on the frame GET
 
 The Impression's four front buttons are read over libgpiod (active-low with
-pull-ups, falling edge) and reported to the server, which maps
-`refresh` / `left` / `right` onto refresh / rotate_prev / rotate_next.
+pull-ups, falling edge) and reported to the server. Each press carries two
+names: its action, `button=` (`left` / `refresh` / `right`, which the server
+maps onto rotate_prev / refresh / rotate_next by default), and its letter,
+`button_key=` (`a` to `d`). The server's button map is checked for the
+letter first, so the device's **Controls → Button map** can bind each button
+on its own:
+
+```json
+{"a": "page:Calendar", "b": "page:Weather", "c": "page:Home", "d": "page:Family"}
+```
+
+Button D has no action by default (`action_d = ""`), so it goes by its
+letter alone and does nothing until the map binds `d`. Presses travel over
+REST and the cloud relay; MQTT does not carry them.
 
 Pin numbers differ by model: **A=5, B=6, D=24 on every Impression, but C is
 GPIO 16 on the 4"/5.7"/7.3" and GPIO 25 on the 13.3"** — a difference
@@ -763,7 +775,9 @@ that has never shown a dashboard; otherwise the last one stays up) and
 "Battery empty" on a UPS. Each is painted once, not on every retry.
 
 **Front buttons** (Inky Impression A-D, `[buttons]` in the config): A previous,
-B refresh, C next by default. Holding refresh:
+B refresh, C next by default, and D free for the server's button map, which
+can rebind any of the four by letter (see [Front buttons](#front-buttons--button-on-the-frame-get)).
+Holding refresh, whatever the map says:
 
 | Hold refresh, then let go | Does |
 |---|---|

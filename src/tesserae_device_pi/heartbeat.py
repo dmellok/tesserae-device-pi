@@ -115,6 +115,7 @@ class Status:
     # could not carry it (see button_report.BUTTON_REPORT_FALLBACK_NOTE).
     button: str = ""
     button_event_id: int | None = None
+    button_key: str = ""
     # Panel gamuts this client is sure of (paint.detected_gamuts). Lets the
     # server serve a Spectra 6 Impression the packed .bin; None = say nothing.
     gamuts: list[str] | None = None
@@ -148,6 +149,8 @@ class Status:
         if self.button and self.button_event_id is not None:
             body["button"] = self.button
             body["button_event_id"] = self.button_event_id
+            if self.button_key:
+                body["button_key"] = self.button_key
         return body
 
     def to_json(self) -> bytes:

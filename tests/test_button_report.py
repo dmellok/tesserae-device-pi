@@ -91,3 +91,24 @@ def test_clear_drops_a_pending_press() -> None:
     report.set("refresh")
     report.clear()
     assert report.pending() is None
+
+
+def test_a_press_carries_its_button_letter_on_both_paths() -> None:
+    """The letter rides as button_key beside the action name, on the frame
+    GET and on the status fallback, so the server can bind each button."""
+    report = ButtonReport(seed=7)
+    report.set("left", "a")
+    assert report.frame_query_params() == {
+        "button": "left",
+        "button_event_id": "7",
+        "button_key": "a",
+    }
+    assert report.status_fields() == {"button": "left", "button_event_id": 7, "button_key": "a"}
+
+
+def test_a_letter_only_press_and_a_keyless_press() -> None:
+    report = ButtonReport(seed=1)
+    report.set("d", "d")  # button D, no built-in action
+    assert report.frame_query_params()["button"] == "d"
+    report.set("refresh")  # a caller that knows no letter sends none
+    assert "button_key" not in report.frame_query_params()

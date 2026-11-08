@@ -308,22 +308,31 @@ def test_buttons_default_off_with_auto_pin_c() -> None:
     cfg = parse_toml(DEFAULT_TOML)
     assert cfg.buttons.enabled is False
     assert cfg.buttons.pin_c == BUTTON_PIN_C_AUTO
-    assert cfg.buttons.resolved((1600, 1200)).pin_actions() == {
-        5: "left",
-        6: "refresh",
-        25: "right",
+    assert cfg.buttons.resolved((1600, 1200)).pin_buttons() == {
+        5: ("a", "left"),
+        6: ("b", "refresh"),
+        25: ("c", "right"),
+        24: ("d", ""),
     }
-    assert cfg.buttons.resolved((800, 480)).pin_actions() == {
-        5: "left",
-        6: "refresh",
-        16: "right",
-    }
+    assert cfg.buttons.resolved((800, 480)).pin_buttons()[16] == ("c", "right")
 
 
-def test_buttons_unmapped_action_is_dropped() -> None:
+def test_a_button_with_no_action_is_still_watched_by_its_letter() -> None:
     cfg = parse_toml(DEFAULT_TOML)
-    # action_d defaults to "" -> button D is not mapped.
-    assert cfg.buttons.pin_d not in cfg.buttons.pin_actions()
+    # action_d defaults to "": D has no built-in action, but the server's
+    # button map can bind it as "d", so it is armed all the same.
+    assert cfg.buttons.pin_buttons()[cfg.buttons.pin_d] == ("d", "")
+
+
+def test_buttons_enabled_with_no_actions_is_accepted() -> None:
+    """Every button is reported by its letter, so a config that leaves the
+    actions to the server's button map is a real setup, not an empty one."""
+    body = DEFAULT_TOML.replace("enabled = false", "enabled = true")
+    for action in ("action_a", "action_b", "action_c"):
+        body = re.sub(rf'{action} = "[a-z]*"', f'{action} = ""', body)
+    cfg = parse_toml(body)
+    assert cfg.buttons.enabled
+    assert {key for key, _ in cfg.buttons.pin_buttons().values()} == {"a", "b", "d"}
 
 
 def test_buttons_reject_unknown_action() -> None:
@@ -338,14 +347,6 @@ def test_buttons_reject_out_of_range_pin() -> None:
         parse_toml(body)
 
 
-def test_buttons_enabled_with_no_mapping_is_rejected() -> None:
-    body = DEFAULT_TOML.replace("enabled = false", "enabled = true")
-    for action in ("action_a", "action_b", "action_c"):
-        body = re.sub(rf'{action} = "[a-z]*"', f'{action} = ""', body)
-    with pytest.raises(ValueError, match="map at least one button"):
-        parse_toml(body)
-
-
 def test_buttons_enabled_with_only_the_auto_pin_mapped_is_accepted() -> None:
     """Button C alone is a legitimate mapping; it must not read as empty just
     because its pin hasn't been resolved from the panel yet."""
@@ -353,14 +354,14 @@ def test_buttons_enabled_with_only_the_auto_pin_mapped_is_accepted() -> None:
     for action in ("action_a", "action_b"):
         body = re.sub(rf'{action} = "[a-z]*"', f'{action} = ""', body)
     cfg = parse_toml(body)
-    assert cfg.buttons.resolved((800, 480)).pin_actions() == {16: "right"}
+    assert cfg.buttons.resolved((800, 480)).pin_buttons()[16] == ("c", "right")
 
 
 def test_buttons_duplicate_pin_collapses() -> None:
     """Two buttons on one pin must not produce two watchers on one line."""
     body = DEFAULT_TOML.replace("pin_b = 6", "pin_b = 5")
     cfg = parse_toml(body)
-    assert len(cfg.buttons.resolved((800, 480)).pin_actions()) == 2
+    assert len(cfg.buttons.resolved((800, 480)).pin_buttons()) == 3
 
 
 def test_buttons_round_trip_preserves_an_explicit_pin_c() -> None:

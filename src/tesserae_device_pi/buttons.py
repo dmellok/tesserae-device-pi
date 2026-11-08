@@ -92,12 +92,12 @@ class ButtonWatcher:
         if not self._cfg.enabled:
             log.debug("buttons disabled in config")
             return False
-        pin_actions = self._cfg.pin_actions()
-        if not pin_actions:
-            log.warning("buttons enabled but no pin is mapped to an action")
+        pin_buttons = self._cfg.pin_buttons()
+        if not pin_buttons:
+            log.warning("buttons enabled but no button has a pin")
             return False
         try:
-            self._request = self._open_lines(sorted(pin_actions))
+            self._request = self._open_lines(sorted(pin_buttons))
         except Exception as exc:  # noqa: BLE001 - never fatal, see class docstring
             log.warning(
                 "buttons: could not open GPIO lines (%s: %s); front buttons disabled for this run",
@@ -109,7 +109,10 @@ class ButtonWatcher:
         self._thread.start()
         log.info(
             "buttons armed: %s",
-            ", ".join(f"GPIO{pin}->{action}" for pin, action in sorted(pin_actions.items())),
+            ", ".join(
+                f"{key.upper()}=GPIO{pin}->{action or 'letter only'}"
+                for pin, (key, action) in sorted(pin_buttons.items())
+            ),
         )
         return True
 
@@ -186,7 +189,7 @@ class ButtonWatcher:
     def _loop(self) -> None:
         request = self._request
         debounce_s = self._cfg.debounce_ms / 1000.0
-        pin_actions = self._cfg.pin_actions()
+        pin_buttons = self._cfg.pin_buttons()
         while not self._stop.is_set():
             try:
                 # Bounded wait so stop() is honoured promptly even on a panel
@@ -211,18 +214,22 @@ class ButtonWatcher:
                 if now - self._last_edge.get(pin, 0.0) < debounce_s:
                     continue
                 self._last_edge[pin] = now
-                action = pin_actions.get(pin)
-                if not action:
+                button = pin_buttons.get(pin)
+                if button is None:
                     continue
-                press = self._report.set(action)
+                key, action = button
+                # A button with no action of its own goes by its letter, so
+                # the server's button map can still bind it.
+                press = self._report.set(action or key, key)
                 log.info(
-                    "button press: GPIO%d -> %s (event_id=%d)",
+                    "button press: %s (GPIO%d) -> %s (event_id=%d)",
+                    key.upper(),
                     pin,
-                    action,
+                    press.name,
                     press.event_id,
                 )
                 if self._on_press is not None:
-                    self._on_press(action)
+                    self._on_press(press.name)
                 if action == RESET_ACTION and (self._on_reset_hold or self._on_unlock_hold):
                     self._held_since[pin] = now
 

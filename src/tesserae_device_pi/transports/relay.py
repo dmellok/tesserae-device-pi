@@ -544,6 +544,7 @@ def _wake_cycle(
     press = report.pending()
     status.button = press.name if press is not None else ""
     status.button_event_id = press.event_id if press is not None else None
+    status.button_key = press.key if press is not None else ""
     status.next_sleep_s = config.relay.poll_interval_s
 
     try:

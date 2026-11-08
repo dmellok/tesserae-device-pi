@@ -47,17 +47,17 @@ def test_resolved_leaves_an_explicit_pin_alone() -> None:
 def test_unresolved_pin_c_is_not_armed() -> None:
     """GPIO 0 is ID_SD, reserved for the HAT EEPROM. If something forgot to
     call resolved(), button C drops out rather than watching that line."""
-    actions = ButtonsConfig(enabled=True).pin_actions()
-    assert 0 not in actions
-    assert actions == {5: "left", 6: "refresh"}
+    buttons = ButtonsConfig(enabled=True).pin_buttons()
+    assert 0 not in buttons
+    assert buttons == {5: ("a", "left"), 6: ("b", "refresh"), 24: ("d", "")}
 
 
 def test_resolved_config_maps_all_three_default_buttons() -> None:
-    actions = ButtonsConfig(enabled=True).resolved((800, 480)).pin_actions()
-    assert actions == {5: "left", 6: "refresh", 16: "right"}
+    buttons = ButtonsConfig(enabled=True).resolved((800, 480)).pin_buttons()
+    assert buttons == {5: ("a", "left"), 6: ("b", "refresh"), 16: ("c", "right"), 24: ("d", "")}
 
 
 def test_duplicate_pins_collapse_after_resolution() -> None:
     """Two watchers on one line is something libgpiod would refuse anyway."""
     cfg = ButtonsConfig(enabled=True, pin_a=16).resolved((800, 480))
-    assert len(cfg.pin_actions()) == 2
+    assert len(cfg.pin_buttons()) == 3

@@ -162,7 +162,10 @@ def render_config_toml(
         '# from the panel inky.auto() detected", which is what a fresh install\n'
         "# wants — this client has no configured panel model to read it from.\n"
         "# Actions are the server's vocabulary: refresh | left | right (left and\n"
-        "# right map to rotate_prev / rotate_next). Empty = button unmapped.\n"
+        "# right map to rotate_prev / rotate_next). Every press also carries its\n"
+        "# letter (a-d), and the server's button map can bind a letter on its\n"
+        '# own ("a": "page:Calendar"). Empty = no built-in action: the\n'
+        "# button is sent by its letter only.\n"
         f"enabled = {'true' if buttons_enabled else 'false'}\n"
         f"chip = {_toml_str(buttons_chip)}"
         "            # gpiochip name; empty = autodetect\n"
@@ -186,10 +189,10 @@ def render_config_toml(
         "                # empty = ~/.cache/tesserae-device-pi\n"
         "\n"
         "[ota]\n"
-        "# Reports update-attempt state to the server's Devices UI. This client\n"
-        "# does not install anything itself — whatever does (apt/pip/git) records\n"
-        "# its progress here. Advertising the schema is what lets the server\n"
-        "# offer an update at all.\n"
+        "# Signed self-updates from the server's Settings -> Firmware: the\n"
+        "# client reports each attempt's progress, and advertising this is what\n"
+        "# lets the server offer an update at all. If an update fails to start,\n"
+        "# the previous version is put back.\n"
         f"report_enabled = {'true' if ota_report_enabled else 'false'}\n"
         "\n"
         "[environment]\n"
@@ -352,8 +355,14 @@ class ButtonsConfig:
 
         return replace(self, pin_c=default_pin_c(panel_size))
 
-    def pin_actions(self) -> dict[int, str]:
-        """BCM pin -> server action, skipping unmapped buttons.
+    def pin_buttons(self) -> dict[int, tuple[str, str]]:
+        """BCM pin -> (button letter, action) for every button.
+
+        The letter (``a``-``d``) travels with every press as ``button_key``,
+        so the server's button map can bind each physical button on its own;
+        the action (``refresh`` / ``left`` / ``right``, or empty) is what the
+        press means when the map doesn't. A button with no action is still
+        watched and reported by its letter alone.
 
         Built as a dict so two buttons cannot both claim a pin: a duplicate
         pin in config collapses here rather than producing two watchers on
@@ -363,13 +372,13 @@ class ButtonsConfig:
         watcher on GPIO 0 — that line is ID_SD, reserved for the HAT EEPROM.
         Call resolved() first; this is the safety net if something didn't.
         """
-        pairs = (
-            (self.pin_a, self.action_a),
-            (self.pin_b, self.action_b),
-            (self.pin_c, self.action_c),
-            (self.pin_d, self.action_d),
+        buttons = (
+            (self.pin_a, "a", self.action_a),
+            (self.pin_b, "b", self.action_b),
+            (self.pin_c, "c", self.action_c),
+            (self.pin_d, "d", self.action_d),
         )
-        return {pin: action for pin, action in pairs if action and pin != BUTTON_PIN_C_AUTO}
+        return {pin: (key, action) for pin, key, action in buttons if pin != BUTTON_PIN_C_AUTO}
 
 
 @dataclass(frozen=True)
@@ -565,7 +574,7 @@ def _parse(raw: dict[str, Any]) -> Config:
         if action and action not in BUTTON_ACTIONS:
             raise ValueError(
                 f"[buttons].{name} unknown: {action!r} "
-                f'(expected one of {sorted(BUTTON_ACTIONS)}, or "" to unmap)'
+                f'(expected one of {sorted(BUTTON_ACTIONS)}, or "" for none)'
             )
     if (
         not isinstance(buttons.debounce_ms, int)
@@ -573,16 +582,6 @@ def _parse(raw: dict[str, Any]) -> Config:
         or buttons.debounce_ms < 0
     ):
         raise ValueError("[buttons].debounce_ms must be a non-negative integer")
-    # Checked against the *unresolved* mapping plus the auto pin_c, so
-    # "enabled with only button C mapped" is accepted rather than looking
-    # empty just because the panel hasn't been detected yet.
-    if buttons.enabled and not (
-        buttons.pin_actions() or (buttons.pin_c == BUTTON_PIN_C_AUTO and buttons.action_c)
-    ):
-        raise ValueError(
-            "[buttons].enabled is true but every action_* is empty — "
-            "map at least one button or set enabled = false"
-        )
 
     cache_section = raw.get("cache", {})
     if not isinstance(cache_section, dict):

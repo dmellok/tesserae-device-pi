@@ -801,12 +801,14 @@ def test_status_fallback_body_carries_the_press(tmp_path: Path) -> None:
     client = RestClient(SERVER_URL, session=session)  # type: ignore[arg-type]
 
     report = ButtonReport(seed=9)
-    report.set("right")
+    report.set("right", "c")
     _wake_cycle(client, cfg, _status(), _paint_noop, cfg_path, report)
 
+    assert session.calls[0]["params"]["button_key"] == "c"
     status_body = json.loads(session.calls[1]["data"])
     assert status_body["button"] == "right"
     assert status_body["button_event_id"] == 9
+    assert status_body["button_key"] == "c"
     # Delivered; it must not re-fire on the next cycle.
     assert report.pending() is None
 

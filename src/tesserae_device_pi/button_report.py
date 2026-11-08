@@ -41,6 +41,9 @@ class ButtonPress:
 
     name: str
     event_id: int
+    #: The physical button (``a``-``d``), sent as ``button_key`` so the
+    #: server's button map can bind it on its own; empty when unknown.
+    key: str = ""
 
 
 class ButtonReport:
@@ -57,11 +60,11 @@ class ButtonReport:
         self._pending: ButtonPress | None = None
         self._next_id = seed if seed is not None else secrets.randbelow(_EVENT_ID_SEED_MAX)
 
-    def set(self, name: str) -> ButtonPress:
+    def set(self, name: str, key: str = "") -> ButtonPress:
         """Record a press, allocating it the next event id. Replaces any
         press still undelivered."""
         with self._lock:
-            press = ButtonPress(name=name, event_id=self._next_id)
+            press = ButtonPress(name=name, event_id=self._next_id, key=key)
             self._next_id += 1
             self._pending = press
             return press
@@ -75,7 +78,10 @@ class ButtonReport:
         press = self.pending()
         if press is None:
             return {}
-        return {"button": press.name, "button_event_id": str(press.event_id)}
+        params = {"button": press.name, "button_event_id": str(press.event_id)}
+        if press.key:
+            params["button_key"] = press.key
+        return params
 
     def status_fields(self) -> dict[str, object]:
         """Fallback delivery fields for the status body; empty when nothing
@@ -83,7 +89,10 @@ class ButtonReport:
         press = self.pending()
         if press is None:
             return {}
-        return {"button": press.name, "button_event_id": press.event_id}
+        fields: dict[str, object] = {"button": press.name, "button_event_id": press.event_id}
+        if press.key:
+            fields["button_key"] = press.key
+        return fields
 
     def finish_frame(self, acknowledged: bool) -> None:
         """Resolve the frame GET. `acknowledged` must be True only for a
