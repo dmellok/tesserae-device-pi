@@ -51,9 +51,12 @@ It does, idempotently:
 
 1. `apt-get install` the build prereqs (`python3-dev`, `build-essential`,
    `libopenjp2-7`, `libtiff6`)
-2. `raspi-config nonint do_spi 0` to enable SPI
-3. `usermod -aG gpio,spi,i2c $USER` for HAT access (i2c is needed for the
-   HAT EEPROM read on Inky Impression; needs a re-login to take effect)
+2. `raspi-config nonint do_spi 0` and `do_i2c 0` to enable SPI (pixel data)
+   and I2C (the HAT EEPROM the panel is detected from), and
+   `dtoverlay=spi0-0cs` in `/boot/firmware/config.txt` so inky can drive
+   chip-select itself; asks for a reboot when any of these changed
+3. `usermod -aG gpio,spi,i2c $USER` for HAT access (needs a re-login to take
+   effect)
 4. Create `.venv` in the repo dir
 5. `pip install -e .` — pulls `inky[rpi]`, `paho-mqtt`, `Pillow`
 6. **Prompts** for transport (`rest` default — just the Tesserae server URL
@@ -80,17 +83,44 @@ Useful flags:
 
 ### From PyPI
 
+The wheel on PyPI is the same one each release signs for over-the-air updates.
+Without the one-shot script, the OS setup, the `/usr/local/bin` link the
+service expects, the config and the service are done by hand:
+
 ```bash
-sudo raspi-config nonint do_spi 0 && sudo raspi-config nonint do_i2c 0
+# 1. OS setup, then reboot so SPI, I2C, the overlay and the groups take effect
+sudo apt update && sudo apt install -y python3-venv python3-dev build-essential libopenjp2-7 libtiff6
+sudo raspi-config nonint do_spi 0
+sudo raspi-config nonint do_i2c 0
+echo 'dtoverlay=spi0-0cs' | sudo tee -a /boot/firmware/config.txt
+sudo usermod -aG gpio,spi,i2c "$USER"
+sudo reboot
+
+# 2. Install, and check the panel
 python3 -m venv ~/.venvs/tesserae-device-pi
 ~/.venvs/tesserae-device-pi/bin/pip install tesserae-device-pi
-~/.venvs/tesserae-device-pi/bin/tesserae-device-pi --paint-test
+~/.venvs/tesserae-device-pi/bin/pip install rpi-lgpio     # Pi 5 only
+sudo ln -sf ~/.venvs/tesserae-device-pi/bin/tesserae-device-pi /usr/local/bin/
+tesserae-device-pi --paint-test
 ```
 
-The same wheel the release signs for over-the-air updates. It runs in the
-foreground; the systemd service (and its update rollback guard) comes from
-`scripts/install-service.sh` in a checkout, so the one-shot install above is
-still the easy way to a Pi that starts on boot.
+3. Run `tesserae-device-pi` once and stop it (Ctrl-C): that writes
+   `~/.config/tesserae-device-pi/config.toml`. Set `transport_mode = "rest"`
+   and `[rest] server_url` (the default `tesserae.local` is rarely right), and
+   optionally `[mqtt] device_id`.
+4. The service and its update rollback guard come from two files in this repo:
+
+```bash
+mkdir -p ~/tdp-service && cd ~/tdp-service
+base=https://raw.githubusercontent.com/dmellok/tesserae-device-pi/main/scripts
+curl -fsSLO $base/install-service.sh
+curl -fsSLO $base/tesserae-device-pi.service.in
+sudo bash install-service.sh
+sudo journalctl -fu tesserae-device-pi
+```
+
+5. Click **Register** on the Pi in the server's Settings → Devices.
+
 ### Manual (if you prefer step-by-step)
 
 ```bash
