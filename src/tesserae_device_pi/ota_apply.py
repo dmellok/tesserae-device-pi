@@ -25,6 +25,8 @@ flash slot:
 
 Progress is reported through :class:`ota_report.OtaReporter`, the same
 ``ota`` object the firmware sends, so the server's Devices UI reads alike.
+The attempt's own log lines go to :class:`ota_log.OtaLog` when one is given,
+which sends them to the server as an OTA log (best effort, never in the way).
 """
 
 from __future__ import annotations
@@ -49,6 +51,7 @@ from typing import Any
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 
+from .ota_log import OtaLog
 from .ota_report import OtaReporter
 
 log = logging.getLogger(__name__)
@@ -205,10 +208,18 @@ class OtaUpdater:
     install: Installer = pip_install
     keys: dict[str, str] | None = None
     python: str = sys.executable
+    ota_log: OtaLog | None = None
 
     def apply(self, descriptor: Any, kind: str) -> bool:
         """Verify and install an offered update. True when the client should
         exit for systemd to start the new version; False when refused."""
+        try:
+            return self._apply(descriptor, kind)
+        finally:
+            if self.ota_log is not None:
+                self.ota_log.stop()
+
+    def _apply(self, descriptor: Any, kind: str) -> bool:
         attempt_id = secrets.token_hex(4)
         target = ""
         try:
@@ -222,6 +233,10 @@ class OtaUpdater:
             if not 0 < size <= MAX_IMAGE_BYTES:
                 raise OtaRejected("rejected", "malformed_manifest", f"size_bytes {size}")
 
+            # From here on it is an attempt, and its log is worth sending.
+            if self.ota_log is not None:
+                self.ota_log.begin()
+            log.info("ota: updating %s -> %s (attempt %s)", self.running_fw, target, attempt_id)
             self.reporter.set("downloading", target_fw=target, attempt_id=attempt_id)
             try:
                 image = self.download(str(manifest["image_url"]), size)
@@ -234,9 +249,13 @@ class OtaUpdater:
             log.warning("ota: %s", exc)
             if exc.reason != "already_current":
                 self.reporter.set(exc.phase, exc.reason, target, attempt_id)
+            if self.ota_log is not None:
+                self.ota_log.end(exc.phase, exc.reason, target, attempt_id)
             return False
         self.reporter.set("pending_confirm", target_fw=target, attempt_id=attempt_id)
         log.warning("ota: installed %s; restarting into it", target)
+        if self.ota_log is not None:
+            self.ota_log.end("pending_confirm", "", target, attempt_id)
         return True
 
     def _install(self, image: bytes, target: str, attempt_id: str) -> None:

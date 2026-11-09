@@ -48,6 +48,16 @@ def test_secrets_never_enter_the_ring() -> None:
     assert text.count("[redacted]") == 2
 
 
+def test_url_query_strings_are_redacted_as_the_firmware_does() -> None:
+    ring, logger = _ring()
+    logger.info("painting url=https://h:8443/api/v1/frame/abc.png?sig=f00d&exp=1 now")
+    logger.info("relative /api/v1/frame?x=1 and 'http://h/p?q=2'")
+    text = ring.dump("# h").decode()
+    assert "url=https://h:8443/api/v1/frame/abc.png?[redacted] now" in text
+    assert "f00d" not in text and "q=2" not in text
+    assert "/api/v1/frame?x=1" in text  # not a full URL: nothing to sign there
+
+
 def test_an_upload_is_capped_and_starts_on_a_whole_line() -> None:
     ring, logger = _ring(ring_bytes=MAX_UPLOAD_BYTES * 2)
     for i in range(4000):

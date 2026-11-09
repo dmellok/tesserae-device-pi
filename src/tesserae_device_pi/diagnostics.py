@@ -11,8 +11,9 @@ Two pieces, both riding the REST status beat:
   device page. Secrets are redacted twice: as each line is stored, and
   again over the whole batch when it is uploaded, with the secrets known by
   then, so a line logged before pairing taught the client its token is
-  still clean. Redacted: the configured tokens and keys, and anything after
-  ``Bearer``.
+  still clean. Redacted: the configured tokens and keys, anything after
+  ``Bearer``, and the query string of any http(s) URL (a signed frame URL
+  carries its signature there), as the firmware's ring does.
 * :class:`DiagLatch` remembers the last paint failure as
   ``{"diag": {"id", "paint_error", "at"}}`` and re-sends it on every beat
   until a status POST is accepted, so a failure on a beat that never
@@ -39,6 +40,8 @@ MAX_UPLOAD_BYTES = 64 * 1024
 RING_BYTES = 48 * 1024
 
 _BEARER_RE = re.compile(r"(Bearer\s+)\S+", re.IGNORECASE)
+#: An http(s) URL's query string, up to whitespace, a quote or a bracket.
+_QUERY_RE = re.compile(r"(https?://[^\s\"'<>`?]*)\?[^\s\"'<>`]*", re.IGNORECASE)
 _REDACTED = "[redacted]"
 
 
@@ -65,7 +68,23 @@ class LogRing(logging.Handler):
     def redact(self, text: str) -> str:
         for secret in self._secrets:
             text = text.replace(secret, _REDACTED)
+        text = _QUERY_RE.sub(r"\1?" + _REDACTED, text)
         return _BEARER_RE.sub(r"\1" + _REDACTED, text)
+
+    def child(self, ring_bytes: int) -> LogRing:
+        """A new, empty ring with this one's secrets, level and format: a
+        buffer for one stretch of the log (an OTA attempt) redacted alike."""
+        ring = LogRing(ring_bytes)
+        ring._secrets = list(self._secrets)
+        ring.setLevel(self.level)
+        if self.formatter is not None:
+            ring.setFormatter(self.formatter)
+        return ring
+
+    def text(self) -> str:
+        """The ring's lines as they stand (redacted when stored)."""
+        with self._lock_ring:
+            return "".join(self._lines)
 
     def emit(self, record: logging.LogRecord) -> None:
         try:
@@ -81,17 +100,21 @@ class LogRing(logging.Handler):
 
     def dump(self, header: str) -> bytes:
         """``header`` and the ring as one upload, cut to ``MAX_UPLOAD_BYTES``."""
-        with self._lock_ring:
-            body = "".join(self._lines)
         # Again over the batch: a line stored before a secret was known.
-        data = (header.rstrip("\n") + "\n" + self.redact(body)).encode("utf-8")
-        if len(data) <= MAX_UPLOAD_BYTES:
-            return data
-        head = (header.rstrip("\n") + "\n").encode("utf-8")
-        tail = data[len(data) - (MAX_UPLOAD_BYTES - len(head)) :]
-        # Start on a whole line, and on a whole UTF-8 character.
-        cut = tail.find(b"\n")
-        return head + (tail[cut + 1 :] if cut >= 0 else tail)
+        return fit_upload(header, self.redact(self.text()))
+
+
+def fit_upload(header: str, body: str, limit: int = MAX_UPLOAD_BYTES) -> bytes:
+    """``header`` then ``body`` as UTF-8, keeping the newest lines of ``body``
+    so the whole fits in ``limit`` bytes."""
+    head = (header.rstrip("\n") + "\n").encode("utf-8")
+    data = head + body.encode("utf-8")
+    if len(data) <= limit:
+        return data
+    tail = data[len(data) - (limit - len(head)) :]
+    # Start on a whole line, and on a whole UTF-8 character.
+    cut = tail.find(b"\n")
+    return head + (tail[cut + 1 :] if cut >= 0 else tail)
 
 
 def log_header(fw_version: str, started_at: float, now: float | None = None) -> str:
@@ -164,6 +187,7 @@ __all__ = [
     "DiagLatch",
     "LogRing",
     "capability",
+    "fit_upload",
     "log_header",
     "upload_requested",
 ]

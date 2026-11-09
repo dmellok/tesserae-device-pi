@@ -50,6 +50,7 @@ from ..environment import payload_for as env_payload
 from ..heartbeat import LEGACY_KIND, Status, _wifi_rssi
 from ..mqtt_loop import PaintFn, parse_frame_payload
 from ..ota_apply import OTA_RESTART_EXIT, OtaUpdater
+from ..ota_log import RESTART_UPLOAD_TIMEOUT_S, OtaLog, Uploader
 from ..ota_report import OtaReporter
 
 log = logging.getLogger(__name__)
@@ -249,15 +250,26 @@ class RestClient:
         self._last_retry_after = _retry_after(resp)
         return resp.status_code, _maybe_json(resp)
 
-    def post_log(self, device_id: str, token: str, data: bytes) -> int:
-        """Upload a log batch (text/plain, protocol v1). Returns the status."""
+    def post_log(
+        self,
+        device_id: str,
+        token: str,
+        data: bytes,
+        extra_headers: dict[str, str] | None = None,
+        timeout_s: float | None = None,
+    ) -> int:
+        """Upload a log batch (text/plain, protocol v1). Returns the status.
+
+        ``extra_headers`` marks an OTA log (``X-Tesserae-Log-Kind: ota``)."""
         headers = _auth_headers(token)
         headers["Content-Type"] = "text/plain; charset=utf-8"
+        if extra_headers:
+            headers.update(extra_headers)
         resp = self._session.post(
             self._url(f"/device/{device_id}/log"),
             data=data,
             headers=headers,
-            timeout=self._timeout,
+            timeout=self._timeout if timeout_s is None else timeout_s,
             allow_redirects=False,
         )
         return int(resp.status_code)
@@ -628,9 +640,12 @@ class Telemetry:
         config: Config,
         running_fw: str,
         download: Callable[[str, int], bytes] | None = None,
+        upload_log: Uploader | None = None,
+        started_at: float | None = None,
     ) -> None:
         self._ota: OtaReporter | None = None
         self._updater: OtaUpdater | None = None
+        self._ota_log: OtaLog | None = None
         #: Set once an update is installed: the loop exits for systemd to
         #: start the new version.
         self.restart_requested = False
@@ -640,8 +655,19 @@ class Telemetry:
             # it was waiting on — the one transition in-memory state can't see.
             self._ota.resolve_boot(running_fw)
             if download is not None:
+                # The attempt's log, sent to the home server's /log route.
+                self._ota_log = OtaLog(
+                    config.cache.root_path(),
+                    running_fw,
+                    time.time() if started_at is None else started_at,
+                    upload=upload_log,
+                )
                 self._updater = OtaUpdater(
-                    self._ota, config.cache.root_path(), running_fw, download
+                    self._ota,
+                    config.cache.root_path(),
+                    running_fw,
+                    download,
+                    ota_log=self._ota_log,
                 )
 
         self._sensor: EnvironmentSensor | None = None
@@ -658,9 +684,21 @@ class Telemetry:
         if self._updater is None:
             return
         self._updater.confirm()
+        ota_log = self._ota_log
+        if ota_log is not None and self._ota is not None:
+            # A log still owed (an upload that failed, or the one the restart
+            # cut off) goes first; then this start's, if it resolved a switch.
+            ota_log.flush()
+            if not ota_log.has_pending:
+                ota_log.resolved(self._ota.state)
+                ota_log.flush()
         offer = body.get("ota") if isinstance(body, dict) else None
         if isinstance(offer, dict) and "payload" in offer and "signature" in offer:
             self.restart_requested = self._updater.apply(offer, kind)
+            if ota_log is not None:
+                # Before the restart, briefly: a log that misses it is kept
+                # and sent by the new version.
+                ota_log.flush(RESTART_UPLOAD_TIMEOUT_S if self.restart_requested else None)
 
     def payload(self) -> dict[str, Any]:
         out: dict[str, Any] = {}
@@ -737,7 +775,19 @@ def run(
             url = config.rest.server_url.rstrip("/") + url
         return client.download(url, max_bytes=size, timeout_s=120.0)
 
-    telemetry = Telemetry(config, status.fw_version, download=ota_download)
+    def ota_log_upload(data: bytes, headers: dict[str, str], timeout_s: float | None) -> int:
+        # `config` is read at call time: a re-pair rebinds it in the loop.
+        return client.post_log(
+            config.mqtt.device_id, config.rest.device_token, data, headers, timeout_s
+        )
+
+    telemetry = Telemetry(
+        config,
+        status.fw_version,
+        download=ota_download,
+        upload_log=ota_log_upload,
+        started_at=status.started_at,
+    )
 
     watcher = None
     if config.buttons.enabled:
