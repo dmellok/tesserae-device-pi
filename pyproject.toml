@@ -84,6 +84,7 @@ module = [
     "tesserae_device_pi.collection",
     "tesserae_device_pi.deck",
     "tesserae_device_pi.frame_cache",
+    "tesserae_device_pi.ota_log",
     "tesserae_device_pi.ota_report",
     "tesserae_device_pi.png_frame",
     "tesserae_device_pi.relay_crypto",

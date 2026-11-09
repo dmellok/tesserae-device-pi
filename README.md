@@ -709,6 +709,25 @@ the server willing to offer an update at all; set
 `[ota].report_enabled = false` to turn updates off. An update you install by
 hand (`git pull`, `pip install`) is reported the same way.
 
+Each attempt also sends its own log, unasked, to the server's
+`/api/v1/device/<id>/log` with `X-Tesserae-Log-Kind: ota` (plus the phase,
+target and attempt id as `X-Tesserae-Ota-*` headers), where it shows under
+**OTA logs** on the device page. The lines logged from the download to the
+end of the attempt are captured (32 KB in memory, redacted like a routine
+upload: tokens, `Bearer` values and URL query strings) and written to the
+cache dir before any upload, then sent:
+
+- when the attempt fails (the same cycle);
+- after the install, before the restart into it (a 5 s try; one that misses
+  is sent by the new version);
+- once the new version's first report resolves it, `confirmed` or
+  `rolled_back`: the kept pre-restart lines, then that start's log.
+
+One log per change of attempt, phase and reason; a failed upload is retried
+on later cycles, and none of it can hold up the update. Refusals before the
+download (`already_current`, a bad signature, the wrong kind) send nothing.
+Only the REST transport applies updates, so only it sends OTA logs.
+
 `fw_version` is reported as plain SemVer. A source checkout used to emit
 `0.0.0+unknown`; a PEP 440 local-version segment doesn't parse as SemVer,
 so the server's update comparison rejected it outright.
@@ -941,6 +960,8 @@ src/tesserae_device_pi/
   frame_cache.py       # content-addressed on-disk store
   cache_sync.py        # deck/album orchestration over the cache
   ota_report.py        # OTA lifecycle reporting (report only, never installs)
+  ota_apply.py         # verify + pip-install a signed update
+  ota_log.py           # each attempt's log, sent as an OTA log
   environment.py       # optional SHT4x/SHTC3 ambient telemetry
   relay_crypto.py      # X25519 + HKDF + AES-GCM, pinned to the contract vectors
   transports/
